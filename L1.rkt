@@ -60,7 +60,7 @@
   (L2-s? . -> . string?)
   (cond
     [(num? s) (string-append "$" (number->string s))]
-    [(label? s) (string-append (substring (symbol->string s) 1) ":")]
+    [(label? s) (substring (symbol->string s) 1)]
     [else (string-append "%" (symbol->string s))]))
 
 (define/contract (asm-stmt stmt)
@@ -71,7 +71,7 @@
     [stmt-memget (lhs base offset)
                  (format "  movl ~a(~a), ~a~n" (asm-s offset) (asm-s base) (asm-s lhs))]
     [stmt-memset (base offset rhs)
-                 (format "  movl ~a, ~a(~a)" (asm-s rhs) (asm-s offset) (asm-s base))]
+                 (format "  movl ~a, ~a(~a)~n" (asm-s rhs) (asm-s offset) (asm-s base))]
     [stmt-aop (lhs op rhs)
               (format (case op
                         [(+=) "  addl ~a, ~a~n"]
@@ -102,7 +102,7 @@
                             [(=) "sete"])
                           (asm-s lhs)))]
     [stmt-label (lbl)
-                (format "~a~n" (asm-s lbl))]
+                (format "~n~a:~n" (asm-s lbl))]
     [stmt-goto (lbl)
                (format "  jmp ~a~n" (asm-s lbl))]
     [stmt-cjump (c1 op c2 lbl1 lbl2)
@@ -113,10 +113,7 @@
                                 (asm-s lbl2)))
                     (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
                             (asm-s c2) (asm-s c1)
-                            (case op
-                              [(<) "jl"]
-                              [(<=) "jle"]
-                              [(=) "je"])
+                            (case op [(<) "jl"] [(<=) "jle"] [(=) "je"])
                             (asm-s lbl1)
                             (asm-s lbl2)))]
     [stmt-call (dst)
@@ -192,218 +189,3 @@
 (define/contract (compile-stmt stmt)
   (any/c . -> . string?)
   (asm-stmt (build-stmt stmt)))
-
-#|
-(provide main)
-(provide compile-1)
-
-;; main : string? -> void?
-(define (main fname)
-  (call-with-input-file fname
-    (λ (in) (display (compile-1 (read in))))))
-
-;; compile-1 : L1? -> string?
-(define (compile-1 src)
-  (let ([out (open-output-string)])
-    (fprintf out ".file \"samp.c\"~n")
-    (fprintf out ".text~n")
-    (fprintf out ".globl go~n")
-    (fprintf out ".type go, @function~n")
-    (compile-1-cfn (cons ':go (first src)) out)
-    (map (λ (fn) (compile-1-fn fn out)) (rest src))
-    (fprintf out "~n.size go, .-go~n")
-    (fprintf out ".ident \"GCC: (Ubuntu 4.3.2-1ubuntu12) 4.3.2\"~n")
-    (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
-    (get-output-bytes out #t)))
-
-;; compile-1-cfn : L1-fn? output-port? -> void?
-;      compile with the C calling convention
-(define (compile-1-cfn fn out)
-  (unless (label? (first fn))
-    (error 'compile-1 "functions must start with a label"))
-  (compile-1-stmt (first fn) out)
-  (fprintf out "\tpushl %ebp~n")
-  (fprintf out "\tmovl %esp, %ebp~n")
-  (fprintf out "\tpushal~n")
-  (fprintf out "\tmovl %esp, %ebp~n")
-  (map (λ (stmt) (compile-1-stmt stmt out)) (rest fn))
-  (fprintf out "\tpopal~n")
-  (fprintf out "\tleave~n")
-  (fprintf out "\tret~n"))
-
-;; compile-1-fn : L1-fn? output-port? -> void?
-;      compile with the custom calling convention
-(define (compile-1-fn fn out)
-  (unless (label? (first fn))
-    (error 'compile-1 "functions must start with a label"))
-  (map (λ (stmt) (compile-1-stmt stmt out)) fn))
-
-;; compile-1-stmt : L1-stmt? output-port? -> void?
-(define (compile-1-stmt stmt out)
-  (or (match-1-assign stmt out)
-      (match-1-arith stmt out)
-      (match-1-shift stmt out)
-      (match-1-cmp stmt out)
-      (match-1-labels stmt out)
-      (match-1-cjump stmt out)
-      (match-1-calls stmt out)
-      (match-1-callouts stmt out)
-      (error 'compile-1 "invalid syntax: ~a" stmt)))
-
-(define (match-1-assign stmt out)
-  (match stmt
-    [`(,(? x? lval) <- ,(? label? rval))
-     (fprintf out "\tmovl $~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) <- ,(? s? rval))
-     (fprintf out "\tmovl ~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) <- (mem ,(? x? rval) ,(? n4? os)))
-     (fprintf out "\tmovl ~a(~a), ~a~n" os (asm rval) (asm lval))]
-    [`((mem ,(? x? lval) ,(? n4? os)) <- ,(? label? rval))
-     (fprintf out "\tmovl $~a, ~a(~a)~n" (asm rval) os (asm lval))]
-    [`((mem ,(? x? lval) ,(? n4? os)) <- ,(? s? rval))
-     (fprintf out "\tmovl ~a, ~a(~a)~n" (asm rval) os (asm lval))]
-    [_ #f]))
-
-(define (match-1-arith stmt out)
-  (match stmt
-    [`(,(? x? lval) += ,(? s? rval))
-     (fprintf out "\taddl ~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) -= ,(? s? rval))
-     (fprintf out "\tsubl ~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) *= ,(? s? rval))
-     (fprintf out "\timull ~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) &= ,(? s? rval))
-     (fprintf out "\tandl ~a, ~a~n" (asm rval) (asm lval))]
-    [_ #f]))
-
-(define (match-1-shift stmt out)
-  (match stmt
-    [`(,(? x? lval) <<= ,(? (or/c num? sx?) rval))
-     (fprintf out "\tsall ~a, ~a~n" (asm rval) (asm lval))]
-    [`(,(? x? lval) >>= ,(? (or/c num? sx?) rval))
-     (fprintf out "\tsarl ~a, ~a~n" (asm rval) (asm lval))]
-    [_ #f]))
-
-(define (match-1-cmp stmt out)
-  (match stmt
-    [`(,(? cx? lval) <- ,(? num? v1) < ,(? num? v2))
-     (if (< v1 v2)
-         (fprintf out "\tmovl $1, ~a~n" (asm lval))
-         (fprintf out "\tmovl $0, ~a~n" (asm lval)))]
-    [`(,(? cx? lval) <- ,(? s? v1) < ,(? num? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v1) (asm v2))
-     (fprintf out "\tsetg ~a~n" (byte-asm lval))]
-    [`(,(? cx? lval) <- ,(? s? v1) < ,(? s? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v2) (asm v1))
-     (fprintf out "\tsetl ~a~n" (byte-asm lval))]
-    [`(,(? cx? lval) <- ,(? num? v1) <= ,(? num? v2))
-     (if (<= v1 v2)
-         (fprintf out "\tmovl $1, ~a~n" (asm lval))
-         (fprintf out "\tmovl $0, ~a~n" (asm lval)))]
-    [`(,(? cx? lval) <- ,(? s? v1) <= ,(? num? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v1) (asm v2))
-     (fprintf out "\tsetge ~a~n" (byte-asm lval))]
-    [`(,(? cx? lval) <- ,(? s? v1) <= ,(? s? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v2) (asm v1))
-     (fprintf out "\tsetle ~a~n" (byte-asm lval))]
-    [`(,(? cx? lval) <- ,(? num? v1) = ,(? num? v2))
-     (if (= v1 v2)
-         (fprintf out "\tmovl $1, ~a~n" (asm lval))
-         (fprintf out "\tmovl $0, ~a~n" (asm lval)))]
-    [`(,(? cx? lval) <- ,(? s? v1) = ,(? num? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v1) (asm v2))
-     (fprintf out "\tsete ~a~n" (byte-asm lval))]
-    [`(,(? cx? lval) <- ,(? s? v1) = ,(? s? v2))
-     (fprintf out "\tmovl $0, ~a~n" (asm lval))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm v2) (asm v1))
-     (fprintf out "\tsete ~a~n" (byte-asm lval))]
-    [_ #f]))
-
-(define (match-1-labels stmt out)
-  (if (label? stmt)
-      (fprintf out "~a:~n" (asm stmt))
-      (match stmt
-        [`(goto ,(? label? lbl))
-         (fprintf out "\tjmp ~a~n" (asm lbl))]
-        [_ #f])))
-
-(define (match-1-cjump stmt out)
-  (match stmt
-    [`(cjump ,(? num? c1) < ,(? num? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tjmp ~a~n" (asm (if (< c1 c2) lbl1 lbl2)))]
-    [`(cjump ,(? num? c1) < ,(? x? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c1) (asm c2))
-     (fprintf out "\tjg ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [`(cjump ,(? s? c1) < ,(? s? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c2) (asm c1))
-     (fprintf out "\tjl ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [`(cjump ,(? num? c1) <= ,(? num? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tjmp ~a~n" (asm (if (<= c1 c2) lbl1 lbl2)))]
-    [`(cjump ,(? num? c1) <= ,(? x? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c1) (asm c2))
-     (fprintf out "\tjge ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [`(cjump ,(? s? c1) <= ,(? s? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c2) (asm c1))
-     (fprintf out "\tjle ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [`(cjump ,(? num? c1) = ,(? num? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tjmp ~a~n" (asm (if (= c1 c2) lbl1 lbl2)))]
-    [`(cjump ,(? num? c1) = ,(? x? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c1) (asm c2))
-     (fprintf out "\tjne ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [`(cjump ,(? s? c1) = ,(? s? c2) ,(? label? lbl1) ,(? label? lbl2))
-     (fprintf out "\tcmpl ~a, ~a~n" (asm c2) (asm c1))
-     (fprintf out "\tje ~a~n" (asm lbl1))
-     (fprintf out "\tjmp ~a~n" (asm lbl2))]
-    [_ #f]))
-
-(define (match-1-calls stmt out)
-  (match stmt
-    [`(call ,(? s? dst))
-     (let ([new-label (gen-new-label)])
-       (fprintf out "\tpushl $~a~n" (asm new-label))
-       (fprintf out "\tpushl %ebp~n")
-       (fprintf out "\tmovl %esp, %ebp~n")
-       (if (label? dst)
-           (fprintf out "\tjmp ~a~n" (asm dst))
-           (fprintf out "\tjmp *~a~n" (asm dst)))
-       (fprintf out "~a:~n" (asm new-label)))]
-    [`(tail-call ,(? s? dst))
-     (fprintf out "\tmovl %ebp, %esp~n")
-       (if (label? dst)
-           (fprintf out "\tjmp ~a~n" (asm dst))
-           (fprintf out "\tjmp *~a~n" (asm dst)))]
-    [`(return)
-     (fprintf out "\tmovl %ebp, %esp~n")
-     (fprintf out "\tpopl %ebp~n")
-     (fprintf out "\tret~n")]
-    [_ #f]))
-
-(define (match-1-callouts stmt out)
-  (match stmt
-    [`(eax <- (print ,(? s? arg1)))
-     (fprintf out "\tpushl ~a~n" (asm arg1))
-     (fprintf out "\tcall l1_print~n")
-     (fprintf out "\taddl $4, %esp~n")]
-    [`(eax <- (allocate ,(? s? arg1) ,(? s? arg2)))
-     (fprintf out "\tpushl ~a~n" (asm arg2))
-     (fprintf out "\tpushl ~a~n" (asm arg1))
-     (fprintf out "\tcall l1_allocate~n")
-     (fprintf out "\taddl $8, %esp~n")]
-    [`(eax <- (array-error ,(? s? arg1) ,(? s? arg2)))
-     (fprintf out "\tpushl ~a~n" (asm arg2))
-     (fprintf out "\tpushl ~a~n" (asm arg1))
-     (fprintf out "\tcall l1_arrayerror~n")
-     (fprintf out "\taddl $8, %esp~n")]
-    [_ #f]))
-
-|#
