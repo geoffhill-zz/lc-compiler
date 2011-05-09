@@ -1,0 +1,10 @@
+((:somefn 8 10)
+ (:somefn (x y)
+   (let ([a (+ x x)])
+     (let ([b (+ x y)])
+       (let ([c (* a b)])
+         (let ([a (print a)])
+           (let ([b (print b)])
+             (let ([c (print c)])
+               0))))))))
+

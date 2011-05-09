@@ -1,0 +1,8 @@
+((:somefn 6 7)
+ (:somefn (x y)
+   (let ([a (new-array x y)])
+     (let ([b (alen a)])
+       (let ([c (aset a 1 13)])
+         (let ([d (print a)])
+           (let ([e (print b)])
+             0)))))))

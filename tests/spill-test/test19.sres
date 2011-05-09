@@ -1,0 +1,21 @@
+((ecx <- eax)
+ (edx <- eax)
+ (edx += 19)
+ (edx *= 2)
+ ((mem ebp -4) <- edx)
+ (t_0 <- (mem ebp -4))
+ (cjump t_0 < t_0 :good :great)
+ :good
+ (eax += 1)
+ :great
+ (t_1 <- (mem ebp -4))
+ (cjump t_1 <= t_1 :awesome :amazing)
+ :awesome
+ (eax -= 1)
+ :amazing
+ (t_2 <- (mem ebp -4))
+ (cjump t_2 = t_2 :incred :sweet)
+ :incred
+ (eax &= 6631)
+ :sweet
+ (eax += edx))

@@ -1,0 +1,10 @@
+(:do_things
+ (x <- eax)
+ (y <- eax)
+ (y -= 10)
+ (z <- ecx)
+ (z *= x)
+ (z *= y)
+ (eax <- (print z))
+ (eax <- z)
+ (return))

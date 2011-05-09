@@ -1,0 +1,17 @@
+((ecx <- eax)
+ (edx <- eax)
+ (edx += 19)
+ (edx *= 2)
+ (tc <- edx)
+ (eax <- (allocate tc 5))
+ (edx <- eax)
+ (eax <- (allocate 5 tc))
+ (edx <- eax)
+ (eax <- (array-error 7 tc))
+ (edx <- eax)
+ (eax <- (array-error tc 7))
+ (ecx += 7)
+ (eax <- ecx))
+tc
+-16
+e_

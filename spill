@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#RACKET_PATH="/Applications/Racket v5.1/bin/racket"
+RACKET_PATH="/opt/racket-5.1/bin/racket"
+
+if [ -z "$1" ];
+  then
+    echo "Usage: ./spill PROGRAM"
+  else
+    "$RACKET_PATH" -um "./L2.rkt" "spill" "$1"
+fi
+

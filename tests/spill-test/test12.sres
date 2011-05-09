@@ -1,0 +1,18 @@
+(:start
+ ((mem ebp -20) <- eax)
+ (v2 <- eax)
+ (v3 <- ecx)
+ (v4 <- :fn1)
+ (v5 <- :fn2)
+ (eeet_0 <- (mem ebp -20))
+ (cjump v3 < eeet_0 :next_section :bad_section)
+ :next_section
+ (v2 += v3)
+ (eeet_1 <- (mem ebp -20))
+ (cjump v2 <= eeet_1 :good_section :bad_section)
+ :good_section
+ (call v4)
+ (return)
+ :bad_section
+ (call v5)
+ (return))

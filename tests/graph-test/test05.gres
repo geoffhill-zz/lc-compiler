@@ -1,0 +1,2 @@
+((eax ebx ecx edi edx esi t1 t2 x) (ebx eax ecx edi edx esi) (ecx eax ebx edi edx esi t1 t2 x y) (edi eax ebx ecx edx esi) (edx eax ebx ecx edi esi) (esi eax ebx ecx edi edx t1) (t1 eax ecx esi t2 x y z) (t2 eax ecx t1 x y z) (x eax ecx t1 t2 y z) (y ecx t1 t2 x z) (z t1 t2 x y))
+((t1 edx) (t2 ebx) (x edi) (y eax) (z esi))

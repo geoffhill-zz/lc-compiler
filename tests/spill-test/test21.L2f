@@ -1,0 +1,15 @@
+((eax *= 2)
+ (eax += 1)
+ (var1 <- eax)
+ (edx <- 0)
+ (ecx <- var1 < var1)
+ (edx += ecx)
+ (ecx <- var1 <= var1)
+ (edx += ecx)
+ (ecx <- var1 = var1)
+ (edx += ecx)
+ (edx -= var1)
+ (eax <- edx))
+var1
+-12
+wh_

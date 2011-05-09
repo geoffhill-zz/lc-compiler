@@ -1,0 +1,21 @@
+((ecx <- eax)
+ (edx <- eax)
+ (edx += 19)
+ (edx *= 2)
+ (rrr <- edx)
+ (cjump rrr < rrr :good :great)
+ :good
+ (eax += 1)
+ :great
+ (cjump rrr <= rrr :awesome :amazing)
+ :awesome
+ (eax -= 1)
+ :amazing
+ (cjump rrr = rrr :incred :sweet)
+ :incred
+ (eax &= 6631)
+ :sweet
+ (eax += edx))
+rrr
+-4
+t_
