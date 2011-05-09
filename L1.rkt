@@ -47,14 +47,14 @@
     [_ (error 'build-stmt "no matching clause for ~a" stmt)]))
 
 (define/contract (make-counter prefix)
-  (symbol? . -> . (-> integer?))
+  (symbol? . -> . (-> symbol?))
   (let ([p (symbol->string prefix)]
         [i 0])
     (λ ()
-      (begin0 (string-append p (number->string i))
+      (begin0 (string->symbol (string-append p (number->string i)))
               (set! i (+ i 1))))))
 
-(define gen-new-label (make-counter ':__newlbl_))
+(define gen-new-label (make-counter ':__tlbl))
 
 (define/contract (asm-s s)
   (L2-s? . -> . string?)
@@ -76,7 +76,7 @@
               (format (case op
                         [(+=) "  addl ~a, ~a~n"]
                         [(-=) "  subl ~a, ~a~n"]
-                        [(*=) "  multl ~a, ~a~n"]
+                        [(*=) "  imul ~a, ~a~n"]
                         [(&=) "  andl ~a, ~a~n"])
                       (asm-s rhs)
                       (asm-s lhs))]
@@ -163,7 +163,7 @@
     (fprintf out "~n.size go, .-go~n")
     (fprintf out ".ident \"GCC: (Ubuntu 4.3.2-1ubuntu12) 4.3.2\"~n")
     (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
-    (get-output-bytes out #t)))
+    (get-output-string out)))
 
 (define/contract (compile-gofn fn out)
   ((non-empty-listof any/c) output-port? . -> . void?)

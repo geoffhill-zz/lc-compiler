@@ -7,6 +7,10 @@ if [ -z "$1" ];
   then
     echo "Usage: ./L1 PROGRAM"
   else
-    "$RACKET_PATH" -um "./L1.rkt" "$1"
+    "$RACKET_PATH" -um "./L1.rkt" "$1" > temp.asm
+    as -g -o temp.o temp.asm
+    gcc4 -g -O0 -o a.out temp.o L1-runtime.c
+    chmod +x a.out
+    rm -f temp.asm temp.o
 fi
 
