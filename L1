@@ -1,16 +1,17 @@
 #!/bin/bash
 
-#RACKET_PATH="/Applications/Racket v5.1/bin/racket"
-RACKET_PATH="/opt/racket-5.1/bin/racket"
+RACKET_PATH="/Applications/Racket v5.1/bin/racket"
+#RACKET_PATH="/opt/racket-5.1/bin/racket"
+FPREFIX=`echo $RANDOM`
 
 if [ -z "$1" ];
   then
     echo "Usage: ./L1 PROGRAM"
   else
-    "$RACKET_PATH" -tm "./L1.rkt" "$1" > temp.asm
-    as -o temp.o temp.asm
-    gcc4 -O0 -o a.out temp.o L1-runtime.c
+    "$RACKET_PATH" -tm "./L1.rkt" "$1" > $FPREFIX.asm
+    as -o $FPREFIX.o $FPREFIX.asm
+    gcc4 -O0 -o a.out $FPREFIX.o L1-runtime.c
     chmod +x a.out
-    rm -f temp.asm temp.o
+    rm -f $FPREFIX.asm $FPREFIX.o
 fi
 
