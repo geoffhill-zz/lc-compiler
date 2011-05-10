@@ -109,35 +109,36 @@
                      (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
                              (asm-s 0) (asm-s lhs)
                              (asm-s c1) (asm-s c2)
-                             (case op
-                               [(<) "setg"]
-                               [(<=) "setge"]
-                               [(=) "sete"])
-                             (asm-s lhs))]
+                             (case op [(<) "setg"] [(<=) "setge"] [(=) "sete"])
+                             (asm-s-lsb lhs))]
                     [else
                      (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
                              (asm-s 0) (asm-s lhs)
                              (asm-s c2) (asm-s c1)
-                             (case op
-                               [(<) "setl"]
-                               [(<=) "setle"]
-                               [(=) "sete"])
-                             (asm-s lhs))])]
+                             (case op [(<) "setl"] [(<=) "setle"] [(=) "sete"])
+                             (asm-s-lsb lhs))])]
     [stmt-label (lbl)
                 (format "~n~a:~n" (asm-s lbl))]
     [stmt-goto (lbl)
                (format "  jmp ~a~n" (asm-s lbl))]
     [stmt-cjump (c1 op c2 lbl1 lbl2)
-                (if (and (num? c1) (num? c2))
-                    (format "  jmp ~a~n"
-                            (if ((case op [(<) <] [(<=) <=] [(=) =]) c1 c2)
-                                (asm-s lbl1)
-                                (asm-s lbl2)))
-                    (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
-                            (asm-s c2) (asm-s c1)
-                            (case op [(<) "jl"] [(<=) "jle"] [(=) "je"])
-                            (asm-s lbl1)
-                            (asm-s lbl2)))]
+                (cond [(and (num? c1) (num? c2))
+                       (format "  jmp ~a~n"
+                               (if ((case op [(<) <] [(<=) <=] [(=) =]) c1 c2)
+                                   (asm-s lbl1)
+                                   (asm-s lbl2)))]
+                      [(num? c1)
+                       (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
+                               (asm-s c1) (asm-s c2)
+                               (case op [(<) "jg"] [(<=) "jge"] [(=) "je"])
+                               (asm-s lbl1)
+                               (asm-s lbl2))]
+                      [else
+                       (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
+                               (asm-s c2) (asm-s c1)
+                               (case op [(<) "jl"] [(<=) "jle"] [(=) "je"])
+                               (asm-s lbl1)
+                               (asm-s lbl2))])]
     [stmt-call (dst)
                (let ([new-label (gen-new-label)])
                  (format "  pushl $~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n  ~a:~n"
