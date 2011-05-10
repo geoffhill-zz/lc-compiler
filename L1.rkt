@@ -33,7 +33,7 @@
     [`((mem ,(? L1-x? base) ,(? n4? offset)) <- ,(? L1-s? rhs)) (stmt-memset base offset rhs)]
     [`(,(? L1-x? lhs) ,(? aop? op) ,(? L1-s? rhs)) (stmt-aop lhs op rhs)]
     [`(,(? L1-x? lhs) ,(? sop? op) ,(? L1-s? rhs)) (stmt-sop lhs op rhs)]
-    [`(,(? L1-x? lhs) <- ,(? L1-s? c1) ,(? cmp? op) ,(? L1-s? c2)) (stmt-cmp lhs c1 op c2)]
+    [`(,(? L1-cx? lhs) <- ,(? L1-s? c1) ,(? cmp? op) ,(? L1-s? c2)) (stmt-cmp lhs c1 op c2)]
     [(? label? lbl) (stmt-label lbl)]
     [`(goto ,(? label? lbl)) (stmt-goto lbl)]
     [`(cjump ,(? L1-s? c1) ,(? cmp? op) ,(? L1-s? c2) ,(? label? lbl1) ,(? label? lbl2))
@@ -63,6 +63,16 @@
     [(label? s) (substring (symbol->string s) 1)]
     [else (string-append "%" (symbol->string s))]))
 
+(define/contract (asm-s-lsb s)
+  (L2-s? . -> . string?)
+  (if (L1-sx? s)
+      (case s
+        [(eax) (asm-s 'al)]
+        [(ebx) (asm-s 'bl)]
+        [(ecx) (asm-s 'cl)]
+        [(edx) (asm-s 'dl)])
+      (asm-s s)))
+
 (define/contract (asm-stmt stmt)
   (L1stmt? . -> . string?)
   (type-case L1stmt stmt
@@ -86,8 +96,8 @@
               (format (case op
                         [(<<=) "  sall ~a, ~a~n"]
                         [(>>=) "  sall ~a, ~a~n"])
-                      (asm-s rhs)
-                      (asm-s lhs))]
+                      (asm-s-lsb rhs)
+                      (asm-s-lsb lhs))]
     [stmt-cmp (lhs c1 op c2)
               (if (and (num? c1) (num? c2))
                   (format "  movl ~a, ~a~n"
