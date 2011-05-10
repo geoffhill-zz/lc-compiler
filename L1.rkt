@@ -122,11 +122,16 @@
                          (asm-s new-label)
                          (asm-s 'ebp)
                          (asm-s 'esp) (asm-s 'ebp)
-                         (asm-s dst)
+                         (if (label? dst)
+                             (asm-s dst)
+                             (string-append "*" (asm-s dst)))
                          (asm-s new-label)))]
     [stmt-tcall (dst)
                 (format "  movl ~a, ~a~n  jmp ~a~n"
-                        (asm-s 'ebp) (asm-s 'esp) (asm-s dst))]
+                        (asm-s 'ebp) (asm-s 'esp)
+                        (if (label? dst)
+                            (asm-s dst)
+                            (string-append "*" (asm-s dst))))]
     [stmt-return ()
                  (format "  movl ~a, ~a~n  popl ~a~n  ret~n"
                          (asm-s 'ebp) (asm-s 'esp) (asm-s 'ebp))]
@@ -138,9 +143,9 @@
                         (asm-s arg2) (asm-s arg1)
                         (asm-s 8) (asm-s 'esp))]
     [stmt-arrayerr (lhs arg1 arg2)
-                (format "  pushl ~a~n  pushl ~a~n  call l1_arrayerror~n  addl ~a, ~a~n"
-                        (asm-s arg2) (asm-s arg1)
-                        (asm-s 8) (asm-s 'esp))]))
+                   (format "  pushl ~a~n  pushl ~a~n  call l1_arrayerror~n  addl ~a, ~a~n"
+                           (asm-s arg2) (asm-s arg1)
+                           (asm-s 8) (asm-s 'esp))]))
 
 ;; main function
 (define/contract (main fname)
@@ -168,12 +173,12 @@
 
 (define/contract (compile-gofn fn out)
   ((non-empty-listof any/c) output-port? . -> . void?)
-  (fprintf out (compile-stmt ':go))
+  (compile-stmt ':go out)
   (fprintf out "  pushl %ebp~n")
   (fprintf out "  movl %esp, %ebp~n")
   (fprintf out "  pushal~n")
   (fprintf out "  movl %esp, %ebp~n")
-  (map (λ (stmt) (fprintf out (compile-stmt stmt))) fn)
+  (map (λ (stmt) (compile-stmt stmt out)) fn)
   (fprintf out "  popal~n")
   (fprintf out "  leave~n")
   (fprintf out "  ret~n")
@@ -183,9 +188,10 @@
   ((non-empty-listof any/c) output-port? . -> . void?)
   (unless (label? (first fn))
     (error 'compile-l1 "first statement must be label, given ~a"))
-  (map (λ (stmt) (fprintf out (compile-stmt stmt))) fn)
+  (map (λ (stmt) (compile-stmt stmt out)) fn)
   (void))
 
-(define/contract (compile-stmt stmt)
-  (any/c . -> . string?)
-  (asm-stmt (build-stmt stmt)))
+(define/contract (compile-stmt stmt out)
+  (any/c output-port? . -> . void?)
+  (fprintf out (asm-stmt (build-stmt stmt)))
+  (void))
