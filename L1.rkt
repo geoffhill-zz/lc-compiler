@@ -95,9 +95,9 @@
     [stmt-sop (lhs op rhs)
               (format (case op
                         [(<<=) "  sall ~a, ~a~n"]
-                        [(>>=) "  sall ~a, ~a~n"])
+                        [(>>=) "  sarl ~a, ~a~n"])
                       (asm-s-lsb rhs)
-                      (asm-s-lsb lhs))]
+                      (asm-s lhs))]
     [stmt-cmp (lhs c1 op c2)
               (if (and (num? c1) (num? c2))
                   (format "  movl ~a, ~a~n"
