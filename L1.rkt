@@ -118,7 +118,7 @@
                             (asm-s lbl2)))]
     [stmt-call (dst)
                (let ([new-label (gen-new-label)])
-                 (format "  pushl ~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n  ~a~n"
+                 (format "  pushl ~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n~n~a:~n"
                          (asm-s new-label)
                          (asm-s 'ebp)
                          (asm-s 'esp) (asm-s 'ebp)
