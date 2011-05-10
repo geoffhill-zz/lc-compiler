@@ -7,6 +7,6 @@ if [ -z "$1" ];
   then
     echo "Usage: ./spill PROGRAM"
   else
-    "$RACKET_PATH" -um "./L2.rkt" "spill" "$1"
+    "$RACKET_PATH" -tm "./L2.rkt" "spill" "$1"
 fi
 

@@ -5,8 +5,8 @@ RACKET_PATH="/opt/racket-5.1/bin/racket"
 
 if [ -z "$1" ];
   then
-    echo "Usage: ./L2 PROGRAM"
+    echo "Usage: ./L2c PROGRAM"
   else
-    "$RACKET_PATH" -um "./L2.rkt" "compile" "$1"
+    "$RACKET_PATH" -tm "./L2.rkt" "compile" "$1"
 fi
 

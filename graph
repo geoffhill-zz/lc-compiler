@@ -7,6 +7,6 @@ if [ -z "$1" ];
   then
     echo "Usage: ./graph PROGRAM"
   else
-    "$RACKET_PATH" -um "./L2.rkt" "graph" "$1"
+    "$RACKET_PATH" -tm "./L2.rkt" "graph" "$1"
 fi
 
