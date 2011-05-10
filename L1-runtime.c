@@ -88,6 +88,6 @@ int main() {
     exit(-1);
   }
   allocptr=heap;
-  go();   // call into the generated code
+  l1_gofn();   // call into the generated code
  return 0;
 }
