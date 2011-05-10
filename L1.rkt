@@ -110,17 +110,15 @@
                                  (asm-s 0))
                              (asm-s lhs))]
                     [(num? c1)
-                     (format "  xor ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
-                             (asm-s lhs) (asm-s lhs)
+                     (format "  cmpl ~a, ~a~n  ~a ~a~n  andl ~a, ~a~n"
                              (asm-s c1) (asm-s c2)
-                             (case op [(<) "setg"] [(<=) "setge"] [(=) "sete"])
-                             (asm-s-lsb lhs))]
+                             (case op [(<) "setg"] [(<=) "setge"] [(=) "sete"]) (asm-s-lsb lhs)
+                             (asm-s 1) (asm-s lhs))]
                     [else
-                     (format "  xor ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
-                             (asm-s lhs) (asm-s lhs)
+                     (format "  cmpl ~a, ~a~n  ~a ~a~n  andl ~a, ~a~n"
                              (asm-s c2) (asm-s c1)
-                             (case op [(<) "setl"] [(<=) "setle"] [(=) "sete"])
-                             (asm-s-lsb lhs))])]
+                             (case op [(<) "setl"] [(<=) "setle"] [(=) "sete"]) (asm-s-lsb lhs)
+                             (asm-s 1) (asm-s lhs))])]
     [stmt-label (lbl)
                 (format "~n~a:~n" (asm-s lbl))]
     [stmt-goto (lbl)
@@ -134,14 +132,12 @@
                       [(num? c1)
                        (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
                                (asm-s c1) (asm-s c2)
-                               (case op [(<) "jg"] [(<=) "jge"] [(=) "je"])
-                               (asm-s lbl1)
+                               (case op [(<) "jg"] [(<=) "jge"] [(=) "je"]) (asm-s-lsb lbl1)
                                (asm-s lbl2))]
                       [else
                        (format "  cmpl ~a, ~a~n  ~a ~a~n  jmp ~a~n"
                                (asm-s c2) (asm-s c1)
-                               (case op [(<) "jl"] [(<=) "jle"] [(=) "je"])
-                               (asm-s lbl1)
+                               (case op [(<) "jl"] [(<=) "jle"] [(=) "je"]) (asm-s-lsb lbl1)
                                (asm-s lbl2))])]
     [stmt-call (dst)
                (let ([new-label (gen-new-label)])
