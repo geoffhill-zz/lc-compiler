@@ -118,7 +118,7 @@
                             (asm-s lbl2)))]
     [stmt-call (dst)
                (let ([new-label (gen-new-label)])
-                 (format "  pushl ~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n~n~a:~n"
+                 (format "  pushl ~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n  ~a:~n"
                          (asm-s new-label)
                          (asm-s 'ebp)
                          (asm-s 'esp) (asm-s 'ebp)
@@ -134,17 +134,21 @@
                             (string-append "*" (asm-s dst))))]
     [stmt-return ()
                  (format "  movl ~a, ~a~n  popl ~a~n  ret~n"
-                         (asm-s 'ebp) (asm-s 'esp) (asm-s 'ebp))]
+                         (asm-s 'ebp) (asm-s 'esp)
+                         (asm-s 'ebp))]
     [stmt-print (lhs arg1)
                 (format "  pushl ~a~n  call l1_print~n  addl ~a, ~a~n"
-                        (asm-s arg1) (asm-s 4) (asm-s 'esp))]
+                        (asm-s arg1)
+                        (asm-s 4) (asm-s 'esp))]
     [stmt-alloc (lhs arg1 arg2)
                 (format "  pushl ~a~n  pushl ~a~n  call l1_alloc~n  addl ~a, ~a~n"
-                        (asm-s arg2) (asm-s arg1)
+                        (asm-s arg2)
+                        (asm-s arg1)
                         (asm-s 8) (asm-s 'esp))]
     [stmt-arrayerr (lhs arg1 arg2)
                    (format "  pushl ~a~n  pushl ~a~n  call l1_arrayerr~n  addl ~a, ~a~n"
-                           (asm-s arg2) (asm-s arg1)
+                           (asm-s arg2)
+                           (asm-s arg1)
                            (asm-s 8) (asm-s 'esp))]))
 
 ;; main function
@@ -174,10 +178,10 @@
 (define/contract (compile-gofn fn out)
   ((non-empty-listof any/c) output-port? . -> . void?)
   (compile-stmt ':go out)
-  (fprintf out "  pushl %ebp~n")
-  (fprintf out "  movl %esp, %ebp~n")
+  (fprintf out (format "  pushl ~a~n" (asm-s 'ebp)))
+  (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
   (fprintf out "  pushal~n")
-  (fprintf out "  movl %esp, %ebp~n")
+  (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
   (map (λ (stmt) (compile-stmt stmt out)) fn)
   (fprintf out "  popal~n")
   (fprintf out "  leave~n")
