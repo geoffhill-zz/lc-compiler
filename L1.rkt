@@ -139,11 +139,11 @@
                 (format "  pushl ~a~n  call l1_print~n  addl ~a, ~a~n"
                         (asm-s arg1) (asm-s 4) (asm-s 'esp))]
     [stmt-alloc (lhs arg1 arg2)
-                (format "  pushl ~a~n  pushl ~a~n  call l1_allocate~n  addl ~a, ~a~n"
+                (format "  pushl ~a~n  pushl ~a~n  call l1_alloc~n  addl ~a, ~a~n"
                         (asm-s arg2) (asm-s arg1)
                         (asm-s 8) (asm-s 'esp))]
     [stmt-arrayerr (lhs arg1 arg2)
-                   (format "  pushl ~a~n  pushl ~a~n  call l1_arrayerror~n  addl ~a, ~a~n"
+                   (format "  pushl ~a~n  pushl ~a~n  call l1_arrayerr~n  addl ~a, ~a~n"
                            (asm-s arg2) (asm-s arg1)
                            (asm-s 8) (asm-s 'esp))]))
 
