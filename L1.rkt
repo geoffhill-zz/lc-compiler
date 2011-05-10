@@ -110,14 +110,14 @@
                                  (asm-s 0))
                              (asm-s lhs))]
                     [(num? c1)
-                     (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
-                             (asm-s 0) (asm-s lhs)
+                     (format "  xor ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
+                             (asm-s lhs) (asm-s lhs)
                              (asm-s c1) (asm-s c2)
                              (case op [(<) "setg"] [(<=) "setge"] [(=) "sete"])
                              (asm-s-lsb lhs))]
                     [else
-                     (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
-                             (asm-s 0) (asm-s lhs)
+                     (format "  xor ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
+                             (asm-s lhs) (asm-s lhs)
                              (asm-s c2) (asm-s c1)
                              (case op [(<) "setl"] [(<=) "setle"] [(=) "sete"])
                              (asm-s-lsb lhs))])]
