@@ -69,9 +69,9 @@
     [stmt-assign (lhs rhs)
                  (format "  movl ~a, ~a~n" (asm-s rhs) (asm-s lhs))]
     [stmt-memget (lhs base offset)
-                 (format "  movl ~a(~a), ~a~n" (asm-s offset) (asm-s base) (asm-s lhs))]
+                 (format "  movl ~a(~a), ~a~n" offset (asm-s base) (asm-s lhs))]
     [stmt-memset (base offset rhs)
-                 (format "  movl ~a, ~a(~a)~n" (asm-s rhs) (asm-s offset) (asm-s base))]
+                 (format "  movl ~a, ~a(~a)~n" (asm-s rhs) offset (asm-s base))]
     [stmt-aop (lhs op rhs)
               (format (case op
                         [(+=) "  addl ~a, ~a~n"]
