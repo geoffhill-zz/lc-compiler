@@ -99,20 +99,30 @@
                       (asm-s-lsb rhs)
                       (asm-s lhs))]
     [stmt-cmp (lhs c1 op c2)
-              (if (and (num? c1) (num? c2))
-                  (format "  movl ~a, ~a~n"
-                          (if ((case op [(<) <] [(<=) <=] [(=) =]) c1 c2)
-                              (asm-s 1)
-                              (asm-s 0))
-                          (asm-s lhs))
-                  (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
-                          (asm-s 0) (asm-s lhs)
-                          (asm-s c2) (asm-s c1)
-                          (case op
-                            [(<) "setl"]
-                            [(<=) "setle"]
-                            [(=) "sete"])
-                          (asm-s lhs)))]
+              (cond [(and (num? c1) (num? c2))
+                     (format "  movl ~a, ~a~n"
+                             (if ((case op [(<) <] [(<=) <=] [(=) =]) c1 c2)
+                                 (asm-s 1)
+                                 (asm-s 0))
+                             (asm-s lhs))]
+                    [(num? c1)
+                     (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
+                             (asm-s 0) (asm-s lhs)
+                             (asm-s c1) (asm-s c2)
+                             (case op
+                               [(<) "setg"]
+                               [(<=) "setge"]
+                               [(=) "sete"])
+                             (asm-s lhs))]
+                    [else
+                     (format "  movl ~a, ~a~n  cmpl ~a, ~a~n  ~a ~a~n"
+                             (asm-s 0) (asm-s lhs)
+                             (asm-s c2) (asm-s c1)
+                             (case op
+                               [(<) "setl"]
+                               [(<=) "setle"]
+                               [(=) "sete"])
+                             (asm-s lhs))])]
     [stmt-label (lbl)
                 (format "~n~a:~n" (asm-s lbl))]
     [stmt-goto (lbl)
