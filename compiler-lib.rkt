@@ -4,10 +4,6 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-;;
-;; CONTRACTS
-;;
-
 (define label-re #rx"^:[a-zA-Z_][a-zA-Z_0-9]*$")
 
 (define label?
@@ -75,25 +71,3 @@
   (flat-named-contract
    'L2-s
    (or/c num? label? L2-x?)))
-
-;;
-;; HELPER FUNCTIONS
-;;
-
-(define/contract (asm-format stmt)
-  (L1-s? . -> . string?)
-  (cond
-    [(L1-x? stmt) (string-append "%" (symbol->string stmt))]
-    [(num? stmt) (string-append "$" (number->string stmt))]
-    [(label? stmt)
-     (let* ([str (symbol->string stmt)]
-            [sstr (substring str 1 (string-length str))])
-       (string-append sstr ":"))]))
-
-(define/contract (asm-lsb stmt)
-  (L1-cx? . -> . string?)
-  (case stmt
-    ['eax "%al"]
-    ['ebx "%bl"]
-    ['ecx "%cl"]
-    ['edx "%dl"]))
