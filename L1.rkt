@@ -67,10 +67,10 @@
   (L2-s? . -> . string?)
   (if (L1-sx? s)
       (case s
-        [(eax) (asm-s 'al)]
-        [(ebx) (asm-s 'bl)]
-        [(ecx) (asm-s 'cl)]
-        [(edx) (asm-s 'dl)])
+        [(eax) "%al"]
+        [(ebx) "%bl"]
+        [(ecx) "%cl"]
+        [(edx) "%dl"])
       (asm-s s)))
 
 (define/contract (asm-stmt stmt)
