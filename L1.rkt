@@ -32,7 +32,7 @@
     [`(,(? L1-x? lhs) <- (mem ,(? L1-x? base) ,(? n4? offset))) (stmt-memget lhs base offset)]
     [`((mem ,(? L1-x? base) ,(? n4? offset)) <- ,(? L1-s? rhs)) (stmt-memset base offset rhs)]
     [`(,(? L1-x? lhs) ,(? aop? op) ,(? L1-s? rhs)) (stmt-aop lhs op rhs)]
-    [`(,(? L1-x? lhs) ,(? sop? op) ,(? L1-s? rhs)) (stmt-sop lhs op rhs)]
+    [`(,(? L1-x? lhs) ,(? sop? op) ,(? (or/c L1-sx? num?) rhs)) (stmt-sop lhs op rhs)]
     [`(,(? L1-cx? lhs) <- ,(? L1-s? c1) ,(? cmp? op) ,(? L1-s? c2)) (stmt-cmp lhs c1 op c2)]
     [(? label? lbl) (stmt-label lbl)]
     [`(goto ,(? label? lbl)) (stmt-goto lbl)]
@@ -65,7 +65,7 @@
 
 (define/contract (asm-s-lsb s)
   (L2-s? . -> . string?)
-  (if (L1-sx? s)
+  (if (L1-cx? s)
       (case s
         [(eax) "%al"]
         [(ebx) "%bl"]
