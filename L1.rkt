@@ -82,7 +82,8 @@
                      (format "  movl ~a, ~a~n"
                              (if (label? rhs)
                                  (string-append "$" (asm-s rhs))
-                                 (asm-s lhs))))]
+                                 (asm-s rhs))
+                             (asm-s lhs)))]
     [stmt-memget (lhs base offset)
                  (format "  movl ~a(~a), ~a~n" offset (asm-s base) (asm-s lhs))]
     [stmt-memset (base offset rhs)
