@@ -71,3 +71,14 @@
   (flat-named-contract
    'L2-s
    (or/c num? label? L2-x?)))
+
+(define L3-v?
+  (flat-named-contract
+   'v?
+   (or/c num? symbol?)))
+
+(define L3-biop?
+  (symbols '+ '- '* '< '<= '=))
+
+(define L3-pred?
+  (symbols 'number? 'a?))
