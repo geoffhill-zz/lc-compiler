@@ -67,7 +67,9 @@
   (L1stmt? . -> . string?)
   (type-case L1stmt stmt
     [stmt-assign (lhs rhs)
-                 (format "  movl ~a, ~a~n" (asm-s rhs) (asm-s lhs))]
+                 (if (and (num? rhs) (zero? rhs))
+                     (format "  xorl ~a, ~a~n" (asm-s lhs) (asm-s lhs))
+                     (format "  movl ~a, ~a~n" (asm-s rhs) (asm-s lhs)))]
     [stmt-memget (lhs base offset)
                  (format "  movl ~a(~a), ~a~n" offset (asm-s base) (asm-s lhs))]
     [stmt-memset (base offset rhs)
