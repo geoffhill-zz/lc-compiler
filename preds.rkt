@@ -1,6 +1,6 @@
 #lang plai
 
-;;; EECS 322 Library of Common Functions
+;;; EECS 322 Library of Common Predicates
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 

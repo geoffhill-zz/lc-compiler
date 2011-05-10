@@ -1,11 +1,11 @@
 #lang plai
 (print-only-errors #t)
 
-;;; EECS 322 Library of Common Functions -- Test
+;;; EECS 322 Library of Common Predicates -- Test
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "compiler-lib.rkt"))
+(require (file "preds.rkt"))
 
 (test/pred (label? ':hello) (not/c false?))
 (test/pred (label? ':_what5) (not/c false?))

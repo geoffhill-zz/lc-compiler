@@ -5,7 +5,7 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "aggr-utils.rkt"))
+(require (file "utils.rkt"))
 
 (test (alphabetize '()) '())
 (test (alphabetize '(t)) '(t))

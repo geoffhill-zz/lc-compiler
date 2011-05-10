@@ -4,8 +4,8 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "aggr-utils.rkt"))
-(require (file "compiler-lib.rkt"))
+(require (file "preds.rkt"))
+(require (file "utils.rkt"))
 
 ;; L2stmt types
 (define-type L2stmt

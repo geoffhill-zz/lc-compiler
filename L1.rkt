@@ -4,7 +4,7 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "compiler-lib.rkt"))
+(require (file "preds.rkt"))
 
 ;; L1stmt types
 (define-type L1stmt
