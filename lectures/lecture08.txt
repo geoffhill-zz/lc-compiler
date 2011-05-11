@@ -1,0 +1,263 @@
+L3. 
+
+Different from L2:
+ - an expression based language
+ - function call convention is hidden
+ - numbers are not encoded, i.e. calling (print 1) prints out "1\n".
+ - no direct memory references (have to use aref, aset, etc)
+
+Like L2:
+ - every intermediate result has a name
+
+============================================================
+
+The grammar.
+
+p ::= (e
+       (l (x ...) e) 
+       ...)
+
+;; note that functions have arguments now
+
+e ::= (let ([x d]) e)
+    | (if v e e)
+    | d
+
+d ::= (biop v v)
+      (pred v)
+      (v v ...)
+      (new-array v v)
+      (new-tuple v ...)
+      (aref v v)
+      (aset v v v)
+      (alen v)
+      (print v)
+      (make-closure l v)
+      (closure-proc v)
+      (closure-vars v)
+      v
+
+v :: = x | l | num
+
+biop ::= + | - | * | < | <= | =
+pred ::= number? | a? ;; a? tests to see if the argument is an array or a tuple
+
+============================================================
+
+Programs in this language make the order of evaluation explicit 
+via lets. So instead of writing something like this:
+
+  (+ (+ 1 2) (+ 3 4))
+
+you have to write something like this:
+
+  (let ([x (+ 1 2)])
+    (let ([y (+ 3 4)])
+      (+ x y)))
+
+showing that the (+ 1 2) happens first and then the (+ 3 4).
+
+Here's our old friend fib:
+
+((:fib 18)
+ (:fib (x)
+       (let ([xlt2 (< x 2)])
+         (if xlt2
+             1
+             (let ([x1 (- x 1)])
+               (let ([f1 (:fib x1)])
+                 (let ([x2 (- x 2)])
+                   (let ([f2 (:fib x2)])
+                     (+ f1 f2)))))))))
+
+============================================================
+
+So, compilation:
+  - linearizes the expression, 
+  - explicates the calling convention (including tail calls vs non-tail calls)
+  - handles the encoding of pointer values & integer values
+
+Three cases for compiling an 'e':
+
+1) the e is a let: (let ([x d]) e)
+-> compile the d, store the result in x, and continue with the body
+   an application expression here is a non-tail call.
+
+2) the e is an if: (if v e1 e2)
+-> generate a test for the v that goes to either then-label or else-label.
+   generate the then-label, 
+   generate the code for e1
+   generate the else-label
+   generate the code for e2
+
+Why don't we need a join here?
+
+The last thing inside an 'e' is always the result of our program, so
+if it is a call, we're fine, the result went away (a tail call), or if
+it isn't then we're going to insert a return.
+
+3) the e is a d: 
+-> if it is an application, make a tail call
+   otherwise, generate the code for the d, 
+   store the result in eax, and return.
+
+Many cases for compiling a 'd'. When compiling a 'd', we always have a
+destination for it; from a let, the destination is the variable. From
+the 'd' at the end of the expression, the destination is eax, since
+that's the result of the function.
+
+Lets look at a couple.
+
+------------------------------------------------------------
+(let ([x (+ y z)]) ...) -> 
+  `(,x <- ,y)
+  `(,x += ,z)
+  `(,x -= 1)
+
+  What if the 'y' or 'z' were constants? Do we have four cases here?
+  Nah, we just encode any constants we see and let something else
+  clean up.
+
+(let ([x (+ v1 v2)]) ...) -> 
+  `(,x <- ,(encode v1))
+  `(,x += ,(encode v2))
+  `(,x -= 1)
+
+  where encode turns a number into the encoded version and leaves
+  variables alone.
+
+  Why is adding them together and then subtracing one the right thing?
+
+  Well, if x is initialized with a number 2a+1, and then we increment
+  that by 2b+1, we have 2a+2b+2 in x. The number we want is
+  2(a+b)+1, since that's the encoding of the sum. The difference
+  between these: 1. So just subtract one.
+
+------------------------------------------------------------
+(let ([x (* v1 v2)]) ...) -> 
+
+In this case, we don't have some kind of a clever trick since the product
+
+  (2a+1) * (2b+1)
+
+is not so useful when trying to compute
+
+  2(a*b)+1
+
+So instead we just decode the numbers and re-encode them:
+
+  `(,tmp <- ,(encode v1))
+  `(,tmp >>= 1)
+  `(,x <- ,(encode v2))
+  `(,x >>= 1)
+  `(,x *= ,tmp)
+  `(,x *= 2)
+  `(,x += 1)
+
+where 'tmp' is a new, fresh variable
+
+------------------------------------------------------------
+(let ([x (<= y z)] ...) ->
+  `(,x <- ,y <= ,z)
+  `(,x <<= 1)
+  `(,x += 1)
+
+Don't forget to encode. 
+
+Also note that boolean values are still represented as integers (zero
+is false, everything else is true).
+
+------------------------------------------------------------
+(let ([x (a? v1)]) ...) ->
+    `(,x <- ,(encode v1))
+    `(,x &= 1)
+    `(,x *= -2)
+    `(,x += 3)
+
+------------------------------------------------------------
+(let ([x (alen v)]) ...) ->
+  `(,x <- (mem ,v)) ;; v can't be a constant here or else this program doesn't work anyways.
+  `(,x <<= 1)
+  `(,x += 1)
+
+  The size stored in the array is the decoded version of the size, so
+  we need to encode it so it cooperates with the rest of the program.
+
+------------------------------------------------------------
+(let ([x (aset v1 v2 v3)]) ...) -> 
+  `(,x <- ,(encode v2))
+  `(,x >>= 1)
+  `(,x *= 4)
+  `(,x += ,v1)
+  `((mem ,x 4) <- ,(encode v3))
+  `(,x <- 1)   ;; put the final result for aset into x (always 0).
+
+What's wrong with that? No bounds checking! How do we do the bounds checking?
+
+Here we use the array-error L2 instruction:
+
+  (eax <- (array-error s s))
+
+It accepts an array and an (attempted) index, prints out an error message
+and terminates the program. Using that we can do the bounds checking:
+
+
+  `(,x <- ,(encode v2))
+  `(,x >>= 1)
+  `(,tmp <- (mem v1 0))
+  `(cjump ,x < ,tmp  ,bounds-pass-label ,bounds-fail-label)
+  bounds-fail-label
+  `(eax <- (array-error v1 x))
+  bounds-pass-label
+  `(,x *= 4)
+  `(,x += ,v1)
+  `((mem ,x 4) <- ,(encode v3))
+  `(,x <- 1)   ;; put the final result for aset into x (always 0).
+
+Note that tmp, bounds-fail-error and bounds-pass-label all have to be
+freshly generated.
+
+Note that this does not completely check the bounds, since the index
+may also be less than 0.
+
+------------------------------------------------------------
+One way to compile the closure primitives:
+ (make-closure a b) is the same as (new-tuple a b)
+ (closure-proc is the same as (aref a 0)
+ (closure-vars a) is the same as (aref a 1)
+
+
+------------------------------------------------------------
+(let ([w (f x y z)]) ->
+  `(ecx <- ,(encode x))
+  `(edx <- ,(encode y))
+  `(eax <- ,(encode z))
+  `(call ,f)  ;; note that 'f' might be a variable that refers to a label, but not a constant...
+  `(,w <- eax)
+  
+Function calls are straightforward when it isn't a tail call.
+
+But what if this was a tail call? Tail calls are the ones at the
+bottom of "e"s, right? (If the call is in a let, there is more to do,
+namely the body of the let.) In that case, we can just do this:
+
+  `(ecx <- ,(encode x))
+  `(edx <- ,(encode y))
+  `(eax <- ,(encode z))
+  `(tail-call ,f)
+
+Since it is a tail call, we let 'f' update eax and just let that sit
+there for this function too.
+
+------------------------------------------------------------ 
+Also note that we need to deal with compiling functions. These cases
+handle compiling the body but we need to do a little setup, namely
+moving the argument registers into the variables that name the
+function parameters. Eg,
+
+  (:label (x y z) e) -->
+  `(,x <- ecx)
+  `(,y <- edx)
+  `(,z <- eax)
+  ... compilation of e goes here ...
+

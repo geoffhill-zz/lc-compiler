@@ -1,0 +1,332 @@
+Tail calls.
+
+Lets talk about program design. In general, as compiler writers and
+people that care about programming languages generally, we should be
+studying program design: what is the best way to write a program and
+why? That then feeds into the design of the compiler. 
+
+Tail calls are an important example of that kind of feedback. So, lets
+see how we get there.
+
+Say I posed you the problem: design a program to represent
+(potentially infinite) sets of integer that support a membership
+test. You must design the representation of the sets.
+
+Further, lets say that we're doing this in an OO language (say Java)
+and I'll put in one hard and fast rule: if you add a new kind of set,
+you must not (have to) change the way that the existing sets are
+represented or implemented.
+
+Here's how you'd probably do that:
+
+  interface Set {
+    boolean member(int o);
+  }
+
+and then a bunch of classes that implement that interface:
+
+class Empty implements Set {
+    public boolean member(int o) {
+	return false;
+    }
+} 
+
+
+// all even numbers (an infinite set!)
+class Evens implements Set {
+    public boolean member(int i) {
+	return i % 2 == 0;
+    }
+}
+
+// add an element to an existing set:
+class Adjoin implements Set {
+  int fst;
+  Set rst;
+  Adjoin(int fst, Set rst) {
+	this.fst=fst;
+    this.rst=rst;
+  }
+  public boolean member(int o) {
+	return fst == o || rst.member(o);
+  }
+}
+
+Lets try making a big set and then adding something to it: 
+
+import java.util.*;
+
+class BigAdjoinMain {
+    public static void main(String[] argv) {
+	Set s = new Empty();
+	Random r = new Random();
+	for (int i=0;i<1000000; i++)
+	    s=new Adjoin(Math.abs(r.nextInt()),s);
+	System.out.println(s.member(-1));
+    }
+}
+
+Whoops: this fails when we run out of stack space.
+
+How can we possibly fix this?
+
+Non-option 1: rewrite the "loop" in adjoin so that it is not a
+recursive function, eg:
+
+import java.util.*;
+
+class BadAdjoin implements Set {
+	int fst;
+	Set rst;
+	BadAdjoin(int fst, Set rst) {
+		this.fst=fst;
+		this.rst=rst;
+	}
+	public boolean member(int o) {
+		Set s = this;
+		while(true) {
+			if (s instanceof Empty) return false;
+			else if (s instanceof BadAdjoin) {
+				BadAdjoin a = (BadAdjoin)s;
+				if (a.fst == o) return true;
+				s=a.rst;
+			} else {
+				System.out.println("Whoops "+s);
+				System.exit(-1);
+			}
+
+		}
+	}
+	
+    public static void main(String[] argv) {
+		Set s = new Empty();
+		Random r = new Random();
+		for (int i=0;i<1000000; i++)
+			s=new BadAdjoin(Math.abs(r.nextInt()),s);
+		System.out.println(s.member(-1));
+    }
+}
+
+But what happens now, when start out with Evens instead of Empty?
+
+Oops, we need a new case in BadAdjoin's member function.
+
+But this violates our design criterion at the beginning! We have to
+add a new case to Adjoin's member each time we add a new class. This
+is no good.
+
+Okay, I can show you a way around this.
+
+First thing, we have to port it to Racket's class system:
+
+--- cut here ---
+#lang racket
+
+(define empty%
+  (class object%
+    (define/public (member i) #f)
+    (super-new)))
+
+(define evens%
+  (class object%
+    (define/public (member i)
+      (zero? (modulo i 2)))
+    (super-new)))
+
+(define adjoin%
+  (class object%
+    (init-field fst rst)
+    (define/public (member i)
+      (or (= i fst)
+          (f (send rst member i))))
+    (super-new)))
+
+(define big-set
+  (let loop ([i 1000000])
+    (cond
+      [(zero? i) (new empty%)]
+      [else 
+       (new adjoin%
+            [fst (random i)]
+            [rst (loop (- i 1))])])))
+
+(send big-set member -1)
+--- cut here ---
+
+Okay, the next step is... nothing. There is no next step. It just works here.
+
+Hm. Why is that?
+
+Lets look carefully at the calls in adjoin and how they translate into
+stack pushes and pops:
+
+   public boolean member(int o) {
+	return fst == o || rst.member(o);
+   }
+
+   --- translate or to if ---> 
+
+   public boolean member(int o) {
+    if (fst==o)
+      return true;
+    else
+      return rst.member(o);
+   }
+
+   --- explicate return ---> 
+
+   public boolean member(int o) {
+    if (fst==o) {
+      eax <- true;
+      pop return addr;
+      goto return addr;
+    } else {
+      eax <- rst.member(o);
+      pop return addr;
+      goto return addr;
+   }
+
+  --- explicate call --->
+
+   public boolean member(int o) {
+     if (fst==o) {
+        eax <- true;
+        pop return addr;
+        goto return addr;
+     } else {
+        store o in call register
+        push after_call_label:
+        goto rst.member;
+        after_call_label:
+        eax <- eax;       // second eax is where the answer from the call to rst.member goes.
+                          // first eax is where the answer to this call goes.
+        pop return address;
+        goto return address;
+     }
+   }
+
+ --- drop redundant assignment --->
+
+   public boolean member(int o) {
+     if (fst==o) {
+        eax <- true;
+        pop return addr;
+        goto return addr;
+     } else {
+        store o in call register
+        push after_call_label:
+        goto rst.member;
+        after_call_label:
+        pop return address;
+        goto return address;
+     }
+   }
+
+--- combine extra push/pop into nothingness --->
+
+   public boolean member(int o) {
+     if (fst==o) {
+        eax <- true;
+        pop return addr;
+        goto return addr;
+     } else {
+        store o in call register
+        goto rst.member;
+     }
+   }
+ 
+Look at that! No extra stack space, so we don't run out of space anymore!
+
+The difference between the Racket version and the Java version is that
+last step. Racket does it and Java doesn't.
+
+What does that kind of a transformation is this in general?
+
+The key observation here: if the last thing to happen in the body of a
+function is a call to another function, then we don't need to make
+more space for the function call; we can just leave the return address
+in the stack there and let the function we call return to our caller,
+instead of returning to us and letting us then return again.
+
+Ie, when a function body's last job is to return a value from a call
+back to its caller, it can do that much more simply.
+
+So, lets look at L5 and figure out: what is the "last thing"?
+
+e ::= (λ () e)
+    | (λ (x) e)
+    | (λ (x x) e)
+    | (λ (x x x) e)
+    | biop
+    | prim
+    | x
+    | (let ([x e]) e)
+    | (if e e e)
+    | (e) (e e) (e e e) (e e e e) ;; application forms
+    | (print e)
+    | (new-array e e)
+    | (new-tuple e ...)
+    | (aref e e)        ;; works on both arrays and tuples
+    | (aset e e e)      ;; works on both arrays and tuples
+    | (begin e e)
+    | num
+  
+biop ::= + | - | * | < | <= | =
+prim ::= number? | a?
+x ::= variables
+
+For each kind of expression, imagine it appears in the body of a
+function. Then look at each of its subexpressions; which ones have
+something still to do and which ones return their results directly?
+
+No more work to do after a subexpression:
+  the then and else branches of 'if' expressions.
+  the last expression in a 'begin' expression.
+  the body of a let expression.
+
+Have some real work to do after a subexpression:
+  everything else
+
+Thus, if a call to a function appears in one of the places in the
+first class (the "no more work to do" class), or nested inside
+multiple such places, then we can treat that as a tail call and avoid
+adjusting the stack.
+
+Otherwise, we make a regular call.
+
+So, can we code up the infinite set example in L5? Here it is:
+
+---cut-here---
+(let ([evenp (new-tuple 0)])
+  (let ([emptyset (lambda (x) 0)])
+    (let ([evenset (lambda (x) ((aref evenp 0) x))])
+      (let ([adjoin (lambda (x s)
+                      (lambda (y)
+                        (if (= x y)
+                            1
+                            (s y))))])
+        (let ([buildset (new-tuple 0)])
+          (begin
+            (aset evenp 
+                  0
+                  (lambda (x)
+                    (if (= x 0)
+                        1
+                        (if (= x 1)
+                            0
+                            ((aref evenp 0)
+                             (if (< x 0)
+                                 (+ x 2)
+                                 (- x 2)))))))
+            (begin
+              (aset buildset
+                    0
+                    (lambda (x)
+                      (if (= x 0)
+                          emptyset
+                          (adjoin 
+                           (* 3 x)
+                           ((aref buildset 0) (- x 1))))))
+              (let ([myset ((aref buildset 0) 1000000)])
+                (print (myset -1))))))))))
+---cut-here---

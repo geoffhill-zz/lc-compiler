@@ -1,0 +1,424 @@
+lecture 1.
+
+Why take this course?
+  - Want to understand your tools better; 
+    what is really going on in the compiler?
+
+  - Some of you are studying architecture: need to understand what
+    comes out of a compiler
+
+  - Phil Greenspun's 10th law.
+
+
+Interpreter vs compiler:
+
+  interpreter : program -> answer
+  compiler : program -> program // no answer!
+
+So, why make a compiler? Because we can make the program run much
+faster if we compile it first. Two ways:
+
+  - there is an interpreter overhead. Say our PL as an addition expression.
+    If we were running the code in an assembly language, the machine would
+    take one cycle (via one instruction) to complete. Right? 
+
+    What about via an interpreter? Well, we need to first inspect the
+    expression ... memory reference. Next we pull out the pieces. Only
+    now can we do the addition.
+
+  - the compiler has a chance to perform transformations on the
+    program to make it run faster. Generally these transformations are
+    ones that the programmer either cannot do -- because the
+    transformed code is at a lower level that is accessible to the
+    programmer -- or does not want to do -- because the transformation
+    is tedious and error prone (so do it once in the compiler).
+
+So, a compiler transforms programs. 
+
+Here's a program:
+
+  '1+2*3+4'
+
+This is just a sequence of characters. IE, a list. The first job is to
+turn it into a tree, perhaps this one:
+
+     *
+    / \
+   /   \
+  +     +      (* (+ 1 2) (+ 3 4))
+ / \   / \
+1   2 3   4 
+
+
+Do you like that tree? ...  That one's wrong, right? Multiplication
+should come first.
+
+How about this one?
+
+    +
+   / \
+  +   4      (+ (+ 1 (* 2 3)) 4)
+ / \   
+1   *  
+   / \
+  2   3
+
+Is that the only tree you might think of? What about this one:
+
+    +
+   / \
+  1   +      (+ 1 (+ (* 2 3) 4))
+     / \
+    *   4
+   / \
+  2   3
+
+A convention: if there are no parens separating out two plus
+expressions, we'll group to the left, ie:
+
+  1+2+3 
+
+is 
+
+  (+ (+ 1 2) 3)   not   (+ 1 (+ 2 3))
+
+Is it important for users of our programming language to know which
+convention we've picked?
+ ... depends on what kind of numbers are in your programming language.
+
+  (big-negative+big-positive)+2
+
+might not be the same as
+
+  big-negative+(big-positive+2)
+
+if there is an exception for overflow, one will overflow and other won't.
+
+This is the parser's job, the first part of a compiler.  Turning
+linear sequence of letters into a tree representing the structure of
+the expression. 
+
+This is essentially the job of putting parentheses into the code to
+disambiguate it and to make the tree structure of the code clear.  So,
+we'll use sexpressions to represent this, when we want to be very
+clear.
+
+============================================================
+
+The next job of the compiler is to eliminate the higher-order functions
+in the program and replace them with first-order functions only.
+
+For example, say we have this program, where I've marked the function
+call sites with an explicit 'call' operator.
+
+(with (f (lambda (x)
+          (lambda (y)
+           (+ x y))))
+  (with (g (call f 1))
+    (+ (call g 2)
+       (call g 3))))
+
+We can make the closures explicit in the program by adding an extra
+argument to each function and then getting closure variables from that
+extra argument.
+
+(with (f (lambda (x closure-vars)
+          (lambda (y closure-vars)
+            (+ (vector-ref closure-vars 0)
+               y))))
+   (with (g (call f 1))
+     (+ (call g 2)
+        (call g 3))))
+
+But now we need to actually *supply* that extra argument.
+
+Where do we get the extra argument?
+
+Lets pair it up from the place where the function was.
+
+(define-struct closure (fn vars))
+
+(with (f (make-closure 
+          (lambda (x closure-vars)
+            (make-closure
+             (lambda (y closure-vars)
+               (+ (vector-ref closure-vars 0)
+                  y))
+             (vector x)))
+          (vector)))
+  (with (g (call f 1))
+    (+ (call g 2)
+       (call g 3))))
+
+(call <fn> <arg>) =
+((closure-fn <fn>) <arg> (closure-vars <fn>))
+
+NOW, we can put all the functions at the top-level:
+
+(define f-func 
+  (lambda (x closure-vars)
+    (make-closure
+     g-func
+     (vector x))))
+
+(define g-func
+  (lambda (y closure-vars)
+    (+ (vector-ref closure-vars 0)
+       y)))
+
+(with (f (make-closure 
+          f-func
+          (vector)))
+  (with (g (call f 1))
+    (+ (call g 2)
+       (call g 3))))
+
+Look at that. One step closer to C, eh? We're heading
+SOUTH. Down down down past C, even. :)
+
+============================================================
+
+Now we can focus in on the bodies of functions.
+
+The next job of the compiler is to linearize that expression into a
+series of instructions that compute the result. Lets return to the
+earlier example. Here's how you might do that. First, name each
+interior node in the tree:
+
+       + t0
+      / \
+ t1  +   4 
+    / \   
+   1   * t2
+      / \
+     2   3
+
+and then generate an instruction that installs that generates the
+result for each step, working your way up from the bottom:
+
+ t2 <- 2*3
+ t1 <- 1+t2
+ t0 <- t1+4
+
+This is called instruction scheduling (and this is actually a pretty
+simple case of instruction scheduling).
+
+The compiler also has to worry about where to store these intermediate
+results. In this case, we're using three places, but do we need that
+many? No! We really only need one place to store each result for this:
+
+ t0 <- 2*3
+ t0 <- 1+t0
+ t0 <- t0+4
+
+This is called register allocation. Doing this in general is 
+quite a bit more complex as we'll see during the course of the quarter.
+
+============================================================
+
+Okay, that was a relatively simple example. Lets try something more
+complex:
+
+f(a,x,howmany) {
+  if (x < howmany) {
+    (a[x]:=a[x-1]+a[x-2];
+     f(a,x+1,howmany))
+  } else
+   void;
+}
+
+main() {
+  let var howmany = 20;
+      var a = new[howmany] of 1;
+  in 
+    f(a,2,howmany);
+    print(a[howmany-1]);
+  end
+}
+
+The language is a simple, imperative programming language. It has a
+series of top-level functions (since we've defunctionalized or maybe
+because the functions started out that way) each containing a single
+expression.
+
+This example demonstrates:
+
+  - declarations, in a 'let'. This is something like starting a new {}
+    block in C/C++/Java, except that you explicitly delimit a series
+    of declaration and include an expression.
+
+  - variables
+
+  - arrays
+
+  - recursive functions.
+
+How does that get parsed? Well, we produce a tree that that is a bit
+more complex.
+
+Can everyone see the tree here? Lets try to write it out, fully
+parenthesized, so we know what we're working with.
+
+Now what is the grammar?
+
+  e = (if e e e)
+    | (< e e)
+    | (+ e e)
+    | (let ((x e) ...) e)
+    | (e e ...)
+    | (vector-ref e e)
+    | (make-vector e e)
+    | (print e)
+
+============================================================
+
+Linearizing this code is a bit trickier. 
+
+
+Lets look at 'main'. The first thing to do is to decide where we
+are going to store the variables:
+
+  Howmany goes as location 4.
+  a at location 8
+  x at location 12.
+
+Sound good? What does it mean that I put the array at location 8 and x
+at 12? That means the array gets 4 bytes, right? So where do the other
+19 elements go? 
+
+Now we can think about generating the code. To handle the
+declarations, we have to put their values into the right places in
+memory:
+
+ mem[4] <- 20
+ mem[8] <- 5000 // ... initialize the array ...
+ mem[12] <- 2
+
+Lets put aside the while loop itself and first generate code for the
+body expression. 
+
+The first thing we have to do is to calculate where the x'th element
+of the array is.
+
+  body:
+   t0 <- mem[12]
+   t1 <- t0 * 4
+   t1 <- t1 + mem[8]
+   t2 <- mem[t1 + 4]
+   t3 <- mem[t1 + 8]
+   t3 <- t3 + t2
+   mem[t0] <- t3
+   t0 <- t0 + 1
+   mem[12] <- t0
+   jump => test
+
+Now we can put the test for the while and a couple of jumps:
+
+ test:
+   t0 <- mem[4]
+   t1 <- mem[12]
+   jmp gte t0, t1 => done:
+
+ body:
+   t0 <- mem[12]
+   t1 <- t0 * 4
+   t1 <- t1 + mem[8]
+   t2 <- mem[t1 + 4]
+   t3 <- mem[t1 + 8]
+   t3 <- t3 + t2
+   mem[t1] <- t3
+   t0 <- t0 + 1
+   mem[12] <- t0
+   jmp => test
+
+ done: 
+
+
+One note: in the compiler itself, we will stage the generation of the
+code. We won't go directly from the tree above to the linear codes,
+but instead will translate the tree that looks just like the surface
+syntax into a tree form, but with simpler instructions and then from
+there into linear code.
+
+============================================================
+
+So, have we checked that all of the primitive arguments are okay?
+
+In particular, where the arefs all really okay? So .. what does that
+mean? Well, it means we actually need different code!
+
+These are the instructions 
+
+   t2 <- mem[t1 + 4]
+   t3 <- mem[t1 + 8]
+   ...
+   mem[t1] <- t3
+
+that are potentially bogus. So we need to add tests that the memory
+location of t1+4, t1+8, and t1 are all within bounds of the original
+array. How do we do that?
+
+Well, we need a different runtime representation of arrays. Instead of
+just a chunk of memory, we need a number and then the chunk of memory.
+
+Lets just see how that would work with 
+
+   a[x] := 2
+
+First we get the address of a into t1:
+
+  t1 <- mem[8]
+
+and then the bound into t2 and the index into t3:
+
+  t2 <- mem[t1]
+  t3 <- x
+
+Now we can check the bound:
+
+  jmp geq t2 t3 => signal_error:
+  
+and once that check has happened, we increment the array pointer to
+skip over the bound:
+
+  t2 <- t2+4
+
+and finally do the update:
+
+  mem[t2+t3*4] <- 2a
+
+============================================================
+
+So, to recap, we have these phases:
+
+  parsing: everyone encounters this at some point in their life. Data
+  is stored somewhere in a linear form and in order to effectively
+  process it, you need to turn it into a tree.
+
+  type checking: generally the data has context sensitive constraints
+  that have to be checked: does this person own the account they are
+  withdrawing from? etc.
+
+  code transformations (turning into low-level trees and instruction
+  selection): this is tree transformations; richer than simple
+  predicates on trees, this kind of programs are written all the time.
+
+  register allocation: graph-based algorithms. You'll learn more when
+  we get there.
+
+Not only do you learn about compilers here, but you improve your
+fundamental programming skills.
+
+============================================================
+
+Course organization:
+
+  - web page: 
+
+     http://www.ece.northwestern.edu/~robby/courses/322-2010-spring/
+
+  - pair, not team programming => write me a note, promising good behavior
+
+  - assignments: we'll build a compiler. Backwards.
+
+  - assignments: test fests

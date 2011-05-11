@@ -1,0 +1,363 @@
+Testing your compiler(s):
+
+ You are not expected to produce an implementation of L1 (or any of
+ the other L's for that matter) that does good error checking. So, do
+ not test that you L1 compiler can deal with things that are not L1
+ programs, or even programs that match the L1 grammar but go wrong at
+ runtime (there are lots of these). 
+
+ From a software engineering perspective, putting this checking into
+ your L1 compiler is a mistake anyways: you want one one piece of code
+ that is expected to be given a well-formed L1 program and to produce
+ a well-formed x86 program. Checking that the input is a well-formed
+ L1 program is a separate task and should be done as part of the
+ interface to your L1 compiler, not mixed into the middle of it. 
+
+ [[ reality intervenes here, however, because determining if something
+    is a broken L1 program or not is not a decidable question. So in
+    practice you really should consider adding some assertions or
+    having some kind of debug-type mode. We will ignore this issue for
+    the purposes of class -- use the L1 interpreter to check programs
+    if you're unsure. ]]
+
+Pair programming: 
+
+ If you want to do it, let me know; see the web page for the rules.
+ Pair programming =/= team programming!
+
+Today's lecture: issues in compilation of L1.
+
+============================================================
+Generating a simple instructions:
+
+    (edx += ecx)  =>  addl %ecx, %edx
+
+    need to convert "s"s in to assembly. Rules:
+
+     - If it is a constant, prefix it with a $
+     - If it is a label, prefix it with a $ as well; assembler inserts actual location
+     - If it is a register, prefix it with a %
+     => special case: for the argument to jump, we don't need the $ on a label
+
+   The arithmetic left and right shifts have to use the "small" registers. Ie, 
+
+     (ebx <<= ecx)
+
+   turns into the code
+
+     sall %cl, %ebx
+
+   This means that if there is a value larger than 255 in %eax, only
+   the lower 8 bits are even considered in the shift. So, shifting by
+   11 is the same as shifting by 1024+11 (1035).
+
+To aid in debugging, the interpreter signals an error if those higher bits are not zeros.
+
+
+============================================================
+Dealing with comparison operators
+
+     cmp instruction is a shorthand for subtraction, so need a
+     register destination for one of the arguments. This means we need
+     to reverse the arguments sometimes.
+
+     Lets consider this:
+
+      (cjump eax < ebx :true :false)
+
+      =>
+
+      cmpl %ebx, %eax   // note reversal of argument order here.
+                        // that's just the way cmpl takes its arguments
+      jl _true          // jl for "jump less", rewrite labels to
+                        // prefix w/ underscores
+      jmp _false
+
+     As it turns out, cmpl is implemented via the subl
+     instruction. Quite literally. So consider this one:
+
+      (cjump 11 < ebx :true :false)
+
+      =>
+
+      cmpl %ebx, $11  // ERROR!
+      jl _true
+      jmp _false
+
+      this is because cmpl is the same as subl so the second argument
+      has to be a destination. Kind of wacky because it doesn't
+      actually update anything, but we can deal, right?  Just generate
+      this code:
+
+      cmpl $11, %ebx
+      jg _true
+      jmp _false
+
+      ie, reverse the arguments and reverse the comparison.
+
+    How about this one?
+
+      (cjump 11 < 12 :true :false)
+
+    Figure it out at compile time and generate just a "jmp"!
+
+      (eax <- ebx < ecx)
+
+    Here we need another trick; the x86 instruction set only let us
+    update the lowest 8 bits with the result of a condition code. So,
+    we do that, and then fill out the rest of the bits with zeros with
+    a separate instruction:
+
+      cmp %ecx, %ebx
+      setl %al
+      movzbl %al, %eax
+
+   Here are the correspondances between the cx registers and the
+   places where the condition codes can be stored:
+
+    %eax's lowest 8 bits are %al
+    %ecx's lowest 8 bits are %cl
+    %edx's lowest 8 bits are %dl
+    %ebx's lowest 8 bits are %bl
+
+============================================================
+Runtime system
+
+  The runtime system is implemented in C. So when you see calls to
+  print or allocate, the code generator needs to produce calls to the
+  C-implemented functions.
+
+  The C function calling convention is not too difficult to deal with
+  because it only shows up in restricted ways. Specifically, you have
+  to generate a function that gets called for the main portion of the
+  program and you have to call into the runtime system.
+
+Main prefix:
+        # save caller's base pointer
+        pushl   %ebp
+        movl    %esp, %ebp
+
+        # save callee-saved registers
+        pushl   %ebx
+        pushl   %esi
+        pushl   %edi
+        pushl   %ebp
+
+        # body begins with base and
+        # stack pointers equal
+        movl    %esp, %ebp
+
+Main suffix:
+        # restore callee-saved registers
+        popl   %ebp
+        popl   %edi
+        popl   %esi
+        popl   %ebx
+
+        # restore caller's base pointer
+        leave
+        ret
+
+To do a call into the runtime you just push the args and do a call.
+
+         pushl <arg2>
+         pushl <arg1>
+         call allocate   // defined in C; C calling convention
+                         // dictates result is stored in %eax
+         addl $8,%esp
+
+         pushl <arg1>
+         call print   // defined in C
+         addl $4,%esp
+
+=> printing
+
+void print_content(void** in, int depth) {
+  if (depth >= 4) {
+    printf("...");
+    return;
+  }
+  int x = (int) in;
+  if (x&1) {
+    printf("%i",x>>1);
+  } else {
+    int size= *((int*)in);
+    void** data = in+1;
+    int i;
+    printf("{s:%i", size);
+    for (i=0;i<size;i++) {
+      printf(", ");
+      print_content(*data,depth+1);
+      data++;
+    }
+    printf("}");
+  }
+}
+
+int print(void* l) {
+  print_content(l,0);
+  printf("\n");
+  return 1;
+}
+
+=> layout of records
+
+#define HEAP_SIZE 1048576  // one megabyte
+
+void** heap;
+void** allocptr;
+int words_allocated=0;
+
+void* allocate(int fw_size, void *fw_fill) {
+  int size = fw_size >> 1;
+  void** ret = (void**)allocptr;
+  int i;
+
+  if (!(fw_size&1)) {
+    printf("allocate called with size input that was not an encoded integer, %i\n",
+           fw_size);
+  }
+  if (size < 0) {
+    printf("allocate called with size of %i\n",size);
+    exit(-1);
+  }
+
+  allocptr+=(size+1);
+  words_allocated+=(size+1);
+  
+  if (words_allocated < HEAP_SIZE) {
+    *((int*)ret)=size;
+    void** data = ret+1;
+    for (i=0;i<size;i++) {
+      *data = fw_fill;
+      data++;
+    }
+    return ret;
+  }
+  else {
+    printf("out of memory");
+    exit(-1);
+  }
+}
+
+=> reporting array dereference errors:
+
+int print_error(int* array, int fw_x) {
+  printf("attempted to use position %i in an array that only has %i positions\n",
+		 fw_x>>1, *array);
+  exit(0);
+}
+
+int main() {
+  heap=(void*)malloc(HEAP_SIZE*sizeof(void*));
+  if (!heap) {
+    printf("malloc failed\n");
+    exit(-1);
+  }
+  allocptr=heap;
+  go();   // call into the generated code
+ return 0;
+}
+
+
+============================================================
+Our function calling convention
+
+  => Call site:
+     - sets up registers for the arguments (at most 3).
+     - invokes the "call" L1 instruction, which:
+       - pushes the return address,
+       - pushes the current ebp onto the stack.
+       - sets the ebp to the current esp
+       - does a goto.
+    
+      (call s) turns into this, where <new-label>
+               is a freshly created label
+
+         pushl $<new-label>
+         pushl %ebp
+         movl %esp, %ebp
+         jmp <s>  // the converted version of s
+         <new-label>:
+
+      Note that if s is a label, then just put the label there
+      (converting the label as all labels get converted);
+      otherwise, convert it following the rules for the "s"s 
+      at the top of these notes and prefix it with an asterisk.
+    
+  => Beginning of the function body:
+     - moves the esp to make room for
+       the local stack variables
+       (ie, the space between the ebp and esp).
+    
+  => Regular return for the function:
+     - puts the result into eax.
+     - invokes the L1 "return" instruction, which does these 3 things:
+       + sets the esp back to the ebp (free the local function storage)
+       + pop / restore the ebp
+       + pop return address & goto (x86 "ret" instruction).
+    
+     In assembly, that's this sequence of instructions:
+
+          movl %ebp, %esp
+          popl %ebp
+          ret
+
+  => tail call site: 
+     - sets up registers for the arguments (at most 3).
+     - invokes the "tail-call" L1 instruction, which: does these 2 things:
+       + sets the esp to the current ebp
+       + does a goto.
+    
+      (tail-call s) turns into this, where <new-label>
+                    is a freshly created label
+
+         movl %ebp, %esp
+         jmp <s>  // the converted version of s
+
+
+============================================================
+Generating a function: 
+
+  Just generate the label and then the body of the function.
+
+============================================================
+Putting it all together:
+
+ => create runtime.c containing the above functions and any other
+    helper functions you need. Compile it with
+
+     gcc -c -O2 -o runtime.o runtime.c
+
+ => generate the assembly code into a file called, say, prog.S. Use
+    the following header for the file:
+
+-------cut-here-------
+	.file	"prog.c"
+	.text
+.globl go
+	.type	go, @function
+go:
+-------cut-here-------
+
+    and then this for the footer:
+
+-------cut-here-------
+	.size	go, .-go
+	.ident	"GCC: (Ubuntu 4.3.2-1ubuntu12) 4.3.2"
+	.section	.note.GNU-stack,"",@progbits
+-------cut-here-------
+
+    I'm not completely clear what the annotations mean-- I used gcc
+     -s to get an example assembly file and cannibalized it. If you
+     know what it means, or even where to find a relevant manual, do
+     let me know.
+
+ => Then, once you have that assembly code, use as to turn that into a
+    .o file:
+
+      as -o prog.o prog.S
+
+ => and then put the two .o files together into a binary:
+
+      gcc -o a.out prog.o runtime.o
