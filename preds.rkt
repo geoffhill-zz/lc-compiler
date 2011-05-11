@@ -72,6 +72,15 @@
    'L2-s?
    (or/c num? label? L2-x?)))
 
+(define L3-keyword?
+  (flat-named-contract
+   'L3-keyword?
+   (symbols
+    'new-array 'new-tuple
+    'aref 'aset 'alen
+    'print 'make-closure
+    'closure-proc 'closure-vars)))
+
 (define L3-biop?
   (flat-named-contract
    'L3-biop?
@@ -87,5 +96,6 @@
    'L3-v?
    (or/c num?
          (and/c symbol?
+                (not/c L3-keyword?)
                 (not/c L3-biop?)
                 (not/c L3-pred?)))))
