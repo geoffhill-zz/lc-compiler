@@ -153,4 +153,16 @@
 (test/pred (L3-pred? 11) false?)
 (test/pred (L3-pred? ':label) false?)
 
+(test/pred (L3-v? 'salad?) (not/c false?))
+(test/pred (L3-v? 'temp0) (not/c false?))
+(test/pred (L3-v? 'var) (not/c false?))
+(test/pred (L3-v? 'eax) (not/c false?))
+(test/pred (L3-v? 'esi) (not/c false?))
+(test/pred (L3-v? ':label) (not/c false?))
+(test/pred (L3-v? 5) (not/c false?))
+(test/pred (L3-v? '=) false?)
+(test/pred (L3-v? '<) false?)
+(test/pred (L3-v? 'a?) false?)
+(test/pred (L3-v? 'number?) false?)
+
 (printf "tests completed~n")

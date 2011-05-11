@@ -9,8 +9,8 @@
 (define label?
   (flat-named-contract
    'label?
-  (and/c symbol?
-         (flat-contract (λ (s) (regexp-match? label-re (symbol->string s)))))))
+   (and/c symbol?
+          (flat-contract (λ (s) (regexp-match? label-re (symbol->string s)))))))
 
 (define num?
   (flat-named-contract
@@ -60,7 +60,7 @@
 
 (define L2-x?
   (flat-named-contract
-   'L2-x
+   'L2-x?
    (and/c symbol?
           (not/c label?)
           (not/c aop?)
@@ -69,16 +69,23 @@
 
 (define L2-s?
   (flat-named-contract
-   'L2-s
+   'L2-s?
    (or/c num? label? L2-x?)))
+
+(define L3-biop?
+  (flat-named-contract
+   'L3-biop?
+   (symbols '+ '- '* '< '<= '=)))
+
+(define L3-pred?
+  (flat-named-contract
+   'L3-pred?
+   (symbols 'number? 'a?)))
 
 (define L3-v?
   (flat-named-contract
-   'v?
-   (or/c num? symbol?)))
-
-(define L3-biop?
-  (symbols '+ '- '* '< '<= '=))
-
-(define L3-pred?
-  (symbols 'number? 'a?))
+   'L3-v?
+   (or/c num?
+         (and/c symbol?
+                (not/c L3-biop?)
+                (not/c L3-pred?)))))
