@@ -3,8 +3,12 @@
 
 (slide
  #:title "An L2 to L1 Compiler"
- (t "Using PLAI to structure transformations.")
- (code \#lang plai))
+ (vc-append 60.0
+            (t "Using PLAI to structure transformations.")
+            (code \#lang plai)
+            (vc-append 30.0
+                       (t "Passes 158 out of 161 (98%) tests.")
+                       (t "Still full of bugs, known and unknown."))))
 
 (slide
  #:title "An L2 to L1 Compiler"
