@@ -108,3 +108,9 @@
   (any/c set? . -> . (set/c set?))
   (set-filter (powerset (set-add pool v))
               (λ (s) (set-member? s v))))
+
+;; create a symbol by concatenating a prefix and a counter
+(define/contract (temp-var prefix counter)
+  (symbol? integer? . -> . symbol?)
+  (string->symbol (string-append (symbol->string prefix)
+                                 (number->string counter))))
