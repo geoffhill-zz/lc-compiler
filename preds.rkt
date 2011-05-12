@@ -76,6 +76,7 @@
   (flat-named-contract
    'L3-keyword?
    (symbols
+    'let 'if
     'new-array 'new-tuple
     'aref 'aset 'alen
     'print 'make-closure
@@ -91,11 +92,16 @@
    'L3-pred?
    (symbols 'number? 'a?)))
 
+(define L3-x?
+  (flat-named-contract
+   'L3-x?
+   (and/c symbol?
+          (not/c label?)
+          (not/c L3-keyword?)
+          (not/c L3-biop?)
+          (not/c L3-pred?))))
+
 (define L3-v?
   (flat-named-contract
    'L3-v?
-   (or/c num?
-         (and/c symbol?
-                (not/c L3-keyword?)
-                (not/c L3-biop?)
-                (not/c L3-pred?)))))
+   (or/c num? label? L3-x?)))

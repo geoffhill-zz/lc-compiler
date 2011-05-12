@@ -71,4 +71,25 @@
 (test (build-L3term ':_lbl) (l3t-v ':_lbl))
 (test (build-L3term ':_fn2__) (l3t-v ':_fn2__))
 
+(test (build-L3expr '(let ([f 5]) f))
+      (l3e-let 'f (l3t-v 5) (l3e-t (l3t-v 'f))))
+(test (build-L3expr '(let ([g (+ 4 5)]) g))
+      (l3e-let 'g (l3t-biop '+ 4 5) (l3e-t (l3t-v 'g))))
+
+(test (build-L3expr '(if 0 1 2))
+      (l3e-if 0 (l3e-t (l3t-v 1)) (l3e-t (l3t-v 2))))
+(test (build-L3expr '(if a 3 z))
+      (l3e-if 'a (l3e-t (l3t-v 3)) (l3e-t (l3t-v 'z))))
+(test (build-L3expr '(if g (if b 0 y) (if c z 1)))
+      (l3e-if 'g
+              (l3e-if 'b (l3e-t (l3t-v 0)) (l3e-t (l3t-v 'y)))
+              (l3e-if 'c (l3e-t (l3t-v 'z)) (l3e-t (l3t-v 1)))))
+
+(test (build-L3expr 0) (l3e-t (l3t-v 0)))
+(test (build-L3expr 4) (l3e-t (l3t-v 4)))
+(test (build-L3expr -121) (l3e-t (l3t-v -121)))
+(test (build-L3expr 'a) (l3e-t (l3t-v 'a)))
+(test (build-L3expr 'z) (l3e-t (l3t-v 'z)))
+(test (build-L3expr ':lbl1) (l3e-t (l3t-v ':lbl1)))
+
 (printf "tests completed~n")
