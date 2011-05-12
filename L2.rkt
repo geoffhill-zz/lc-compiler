@@ -326,7 +326,7 @@
           (if (set-empty? spillables)
               (error 'l2 "no variables left to spill")
               (let-values ([(next rest) (choose-spill-var spillables nodes edges)])
-                (let* ([new-base (spill (build-l2fn-base (raw-stmts stmts))
+                (let* ([new-base (spill (build-l2fn-base (compile-stmts stmts))
                                         next
                                         (- offset 4)
                                         spill-prefix)]
@@ -345,7 +345,7 @@
                [temp-count 0]
                [accum '()])
       (if (= i len)
-          (build-l2fn-base (map raw-stmt (reverse accum)))
+          (build-l2fn-base (map compile-stmt (reverse accum)))
           (let* ([stmt (vector-ref stmts i)]
                  [temp (temp-var prefix temp-count)]
                  [in-gen (set-member? (gen stmt) name)]
@@ -504,18 +504,18 @@
          [graph (build-l2fn-graph liveness)]
          [color (build-l2fn-color graph)]
          [coloring (l2fn-color-coloring color)])
-    (raw-stmts
+    (compile-stmts
      (vector-map
       (λ (stmt) (replace-stmt-vars stmt (λ (x) (hash-ref coloring x x))))
       (l2fn-color-stmts color)))))
 
 ;; gets the L2/L1 s-expr forms of a vector of L2stmts
-(define/contract (raw-stmts stmts)
+(define/contract (compile-stmts stmts)
   ((vectorof L2stmt?) . -> . list?)
-  (vector->list (vector-map raw-stmt stmts)))
+  (vector->list (vector-map compile-stmt stmts)))
 
 ;; gets the L2/L1 s-expr form of an L2stmt
-(define/contract (raw-stmt stmt)
+(define/contract (compile-stmt stmt)
   (L2stmt? . -> . any/c)
   (type-case L2stmt stmt
     [stmt-assign (lhs rhs) `(,lhs <- ,rhs)]
@@ -557,7 +557,7 @@
   (input-port? . -> . any/c)
   (let* ([base (build-l2fn-base (read port))]
          [spilled (spill base (read port) (read port) (read port))]
-         [lstform (raw-stmts (l2fn-base-stmts spilled))])
+         [lstform (compile-stmts (l2fn-base-stmts spilled))])
     (pretty-write lstform)))
 
 (define/contract (main/liveness port)
