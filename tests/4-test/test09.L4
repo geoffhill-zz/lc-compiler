@@ -1,0 +1,12 @@
+((let ([arr (new-array 10 4)])
+   (begin
+     (if (begin (aset arr 2 -11) 1)
+         (aset arr 5 -13)
+         (aset arr 6 -14))
+     (:t arr (+ 4 5) (+ 6 7))))
+ (:t (a b c)
+  (begin
+    (print a)
+    (begin
+      (print b)
+      (print c)))))

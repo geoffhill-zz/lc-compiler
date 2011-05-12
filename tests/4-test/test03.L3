@@ -1,0 +1,7 @@
+((let ([x 5])
+   (let ([y 6])
+     (let ([z 7])
+       (let ([temp1 (print x)])
+         (let ([temp2 (print y)])
+           (let ([temp3 (print z)])
+             (print 8))))))))

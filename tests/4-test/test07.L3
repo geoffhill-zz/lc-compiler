@@ -1,0 +1,11 @@
+((let ([aa 1])
+   (let ([temp1 (number? aa)])
+     (if temp1
+         (let ([ab (new-tuple 3 4 5)])
+           (let ([temp2 (aset ab 1 1)])
+             (let ([temp3 (aset ab 2 2)])
+               (print ab))))
+         (let ([ab (new-tuple 9 8 7)])
+           (let ([temp4 (aset ab 1 1)])
+             (let ([temp5 (aset ab 2 2)])
+               (print ab))))))))

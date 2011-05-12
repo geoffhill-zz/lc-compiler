@@ -1,0 +1,7 @@
+((let ([temp1 (number? 7)])
+   (if
+     temp1
+     (let ([x (+ 6 7)])
+       (print x))
+     (let ([x (- 12 4)])
+       (print x)))))

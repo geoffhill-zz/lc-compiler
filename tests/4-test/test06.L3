@@ -1,0 +1,11 @@
+((let ([aa 1])
+   (let ([temp1 (a? aa)])
+     (if temp1
+         (let ([ab (new-array 6 0)])
+           (let ([temp2 (aset ab 0 6)])
+             (let ([temp3 (aset ab 1 11)])
+               (print ab))))
+         (let ([ab (new-array 12 0)])
+           (let ([temp4 (aset ab 0 6)])
+             (let ([temp5 (aset ab 1 11)])
+               (print ab))))))))

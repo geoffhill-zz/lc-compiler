@@ -1,0 +1,7 @@
+((let ([aa 1])
+   (let ([ab (if (number? aa) (new-tuple 3 4 5) (new-tuple 9 8 7))])
+     (begin
+       (aset ab 1 1)
+       (begin
+         (aset ab 2 2)
+         (print ab))))))

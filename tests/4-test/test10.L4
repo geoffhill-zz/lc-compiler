@@ -1,0 +1,11 @@
+((let ([a -4])
+   (let ([b -5])
+     (let ([c -6])
+       (let ([y (make-closure :t 3)])
+         ((closure-proc y) a b c)))))
+ (:t (a b c)
+  (begin
+    (print a)
+    (begin
+      (print b)
+      (print c)))))
