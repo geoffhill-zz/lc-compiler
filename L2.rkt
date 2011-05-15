@@ -285,7 +285,7 @@
           (let* ([stmt (vector-ref stmts i)]
                  [in (vector-ref ins i)]
                  [out (vector-ref outs i)]
-                 [interfering-pairs
+                 [toomany-interfering-pairs
                   (set-union
                    ; all var combos of the kill set of every stmt
                    (powerset (set-union out (kill stmt)))
@@ -301,6 +301,10 @@
                        (pairs (stmt-cmp-lhs stmt)
                               (set-subtract used-regs valid-cmp-regs))
                        (set)))]
+                 [interfering-pairs
+                   (type-case L2stmt stmt
+                     [stmt-assign (lhs rhs) (set-remove toomany-interfering-pairs (set lhs rhs))]
+                     [else toomany-interfering-pairs])]
                  [important-pairs (set-filter interfering-pairs no-ignored-regs)])
             (loop (+ i 1) (set-union edges important-pairs)))))))
 
@@ -316,7 +320,7 @@
   (l2fn-graph? . -> . l2fn-color?)
   (let loop ([l2fn l2fn]
              [offset 0]
-             [spillables (set-subtract (l2fn-graph-nodes l2fn) used-regs)])
+             [spillables (set-subtract (l2fn-graph-nodes l2fn) all-regs)])
     (let* ([stmts (l2fn-graph-stmts l2fn)]
            [nodes (l2fn-graph-nodes l2fn)]
            [edges (l2fn-graph-edges l2fn)]
@@ -408,7 +412,8 @@
 
 ;; add statements to fix stack alignment
 ;; ensures that labeled functions stay labeled
-;; TODO: fix possible multiple stack decrement bug
+;; TODO: fix possible multiple stack decrement bug (check interpreter)
+;; TODO: fix addition of esp to every return/tail-call
 (define/contract (fix-stack stmts offset)
   ((vectorof L2stmt?) integer? . -> . (vectorof L2stmt?))
   (if (zero? offset)
