@@ -110,6 +110,8 @@
 ;;; CODE GENERATION
 ;;;
 
+(define arg-regs '(ecx edx eax))
+
 ;; compile an L3prog into sequence of L2 stmts
 (define/contract (compile-L3prog prog)
   (L3prog? . -> . any/c)
@@ -126,7 +128,7 @@
             (cons
              lbl
              (cons
-              (for/list ([arg args] [reg '(ecx edx eax)])
+              (for/list ([arg args] [reg arg-regs])
                 `(,arg <- ,reg))
               (compile-L3expr e)))]))
 
@@ -150,20 +152,41 @@
   (L3term? L3-x? . -> . list?)
   (type-case L3term t
     [l3t-biop (op v1 v2)
-              (case op
-                [(+) '((,dst <- ,v1) (,dst += ,v2))]
-                [(-) '((,dst <- ,v1) (,dst -= ,v2))]
-                [(*) '((,dst <- ,v1) (,dst *= ,v2))]
-                [(<) '((,dst <- ,v1 < ,v2))]
-                [(<=) '((,dst <- ,v1 <= ,v2))]
-                [(=) '((,dst <- ,v1 = ,v2))])]
+              (if (and (num? v1) (num? v2))
+                  (case op
+                    [(+) `((,dst <- ,(+ v1 v2)))]
+                    [(-) `((,dst <- ,(- v1 v2)))]
+                    [(*) `((,dst <- ,(* v1 v2)))]
+                    [(<) `((,dst <- ,(if (< v1 v2) 1 0)))]
+                    [(<=) `((,dst <- ,(if (<= v1 v2) 1 0)))]
+                    [(=) `((,dst <- ,(if (= v1 v2) 1 0)))])
+                  (case op
+                    [(+) `((,dst <- ,v1) (,dst += ,v2))]
+                    [(-) `((,dst <- ,v1) (,dst -= ,v2))]
+                    [(*) `((,dst <- ,v1) (,dst *= ,v2))]
+                    [(<) `((,dst <- ,v1 < ,v2))]
+                    [(<=) `((,dst <- ,v1 <= ,v2))]
+                    [(=) `((,dst <- ,v1 = ,v2))]))]
     [l3t-pred (pred v)
-              (case pred
-                [(number?) '((,dst <- ,v) (,dst &= 1))]
-                [(a?) '((,dst <- ,v) (,dst += 1) (,dst &= 1))])]
-    [l3t-apply (fn args) '(...)]
-    [l3t-newarray (len init) '(...)]
-    [l3t-newtuple (args) '(...)]
+              (if (num? v)
+                  (case pred
+                    [(number?) `((,dst <- 1))]
+                    [(a?) `((,dst <- 0))])
+                  (case pred
+                    [(number?) `((,dst <- ,v) (,dst &= 1))]
+                    [(a?) `((,dst <- ,v) (,dst += 1) (,dst &= 1))]))]
+    [l3t-apply (fn args)
+               (append
+                (for/list ([arg args] [reg arg-regs])
+                  `(,reg <- ,arg))
+                `((call ,fn) (,dst <- eax)))]
+    [l3t-newarray (len init) 
+                  `((eax <- (allocate ,len ,init)) (,dst <- eax))]
+    [l3t-newtuple (args)
+                  (append `((eax <- (allocate ,(length args) 0)))
+                          (for/list ([arg args] [i (in-range 0 (length args))])
+                            `((mem eax ,(* 4 (+ i 1))) <- ,arg))
+                          `((,dst <- eax)))]
     [l3t-aref (arr i) '(...)]
     [l3t-aset (arr i v) '(...)]
     [l3t-alen (arr) '(...)]
