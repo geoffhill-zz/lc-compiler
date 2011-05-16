@@ -1,5 +1,5 @@
 /**
- * L1 Linked Library
+ * L1 Runtime System
  * Taken mostly from EECS 322 lecture notes
  *
  * @author Robby Findler <robby@eecs.northwestern.edu>
@@ -88,6 +88,6 @@ int main() {
     exit(-1);
   }
   allocptr=heap;
-  l1_gofn();   // call into the generated code
+  very_first_fn();   // call into the generated code
  return 0;
 }
