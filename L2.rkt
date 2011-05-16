@@ -454,7 +454,7 @@
   (first (set->list (set-remove edge node))))
 
 ;;;
-;;; CODE GENERATION
+;;; L2 -> L1 COMPILATION
 ;;;
 
 ;; compile an L2prog into an L1prog
@@ -500,14 +500,11 @@
       [l2s-print (lhs arg1) (l1s-print lhs arg1)]
       [l2s-alloc (lhs arg1 arg2) (l1s-alloc lhs arg1 arg2)]
       [l2s-arrayerr (lhs arg1 arg2) (l1s-arrayerr lhs arg1 arg2)]))
-    
 
 ;;;
 ;;; EXTERNAL INTERFACE
 ;;;
 
-;; main function
-;; calls helper mains based on first arg
 (define/contract (main fn fname)
   (string? string? . -> . void?)
   (cond
