@@ -114,3 +114,12 @@
   (symbol? integer? . -> . symbol?)
   (string->symbol (string-append (symbol->string prefix)
                                  (number->string counter))))
+
+;; create a symbol creation function
+(define/contract (make-counter prefix)
+  (symbol? . -> . (-> symbol?))
+  (let ([p (symbol->string prefix)]
+        [i 0])
+    (λ ()
+      (begin0 (string->symbol (string-append p (number->string i)))
+              (set! i (+ i 1))))))

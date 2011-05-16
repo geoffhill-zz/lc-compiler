@@ -5,6 +5,7 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
+(require (file "types.rkt"))
 (require (file "L3.rkt"))
 
 (test (build-L3term '(+ 0 0)) (l3t-biop '+ 0 0))
