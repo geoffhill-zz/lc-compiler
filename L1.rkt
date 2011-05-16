@@ -6,24 +6,13 @@
 
 (require (file "types.rkt"))
 (require (file "preds.rkt"))
-
-;;;
-;;; HELPER FUNCTIONS
-;;;
-
-(define/contract (make-counter prefix)
-  (symbol? . -> . (-> symbol?))
-  (let ([p (symbol->string prefix)]
-        [i 0])
-    (λ ()
-      (begin0 (string->symbol (string-append p (number->string i)))
-              (set! i (+ i 1))))))
-
-(define gen-new-label (make-counter ':__tlbl))
+(require (file "utils.rkt"))
 
 ;;;
 ;;; L1 -> x86 COMPILATION
 ;;;
+
+(define gen-new-label (make-counter ':__tlbl))
 
 (define/contract (compile-L1prog prog)
   (L1prog? . -> . string?)
