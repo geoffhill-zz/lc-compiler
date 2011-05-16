@@ -105,11 +105,34 @@
                    (if (equal? dst 'eax)
                        '()
                        `(,(l2s-assign dst 'eax))))]
-    [l3t-aref (arr i) '(...)]
-    [l3t-aset (arr i v) '(...)]
-    [l3t-alen (arr) '(...)]
-    [l3t-print (v) '(...)]
+    [l3t-aref (arr i)
+              `(,dst <- (mem ,arr ,(* 4 (+ i 1))))]
+    [l3t-aset (arr i v)
+              `((mem ,arr ,(* 4 (+ i 1))) <- ,v)]
+    [l3t-alen (arr)
+              `(,dst <- (mem ,arr 0))]
+    [l3t-print (v)
+               (append
+                `(,(l2s-print 'eax v))
+                (if (equal? dst 'eax)
+                    '()
+                    `(,(l2s-assign dst 'eax))))]
     [l3t-makeclj (proc vars) '(...)]
     [l3t-cljproc (clj) '(...)]
     [l3t-cljvars (clj) '(...)]
     [l3t-v (v) `(,(l2s-assign dst v))]))
+
+;;;
+;;; EXTERNAL INTERFACE
+;;;
+
+(define/contract (main fname)
+  (string? . -> . void?)
+  (call-with-input-file fname main/compile))
+
+(define/contract (main/compile port)
+  (input-port? . -> . void?)
+  (pretty-write
+   (format-L2prog
+    (compile-L3prog
+     (build-L3prog (read port))))))
