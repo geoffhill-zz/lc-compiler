@@ -27,40 +27,45 @@
   (L3prog? . -> . L2prog?)
   (type-case L3prog prog
     [l3prog (main others)
-            (l2prog (l2fn (append (compile-L3expr main #t)
-                                  `(,(l2s-label endlbl))))
+            (l2prog (compile-L3fn main)
                     (map compile-L3fn others))]))
 
 ;; compile an L3fn into an L2fn
 (define/contract (compile-L3fn fn)
   (L3fn? . -> . L2fn?)
   (type-case L3fn fn
-    [l3fn (lbl args e)
+    [l3mainfn (body)
+              (l2fn (append (compile-L3expr body #t #t)
+                            `(,(l2s-label endlbl))))]
+    [l3fn (lbl args body)
           (l2fn (append `(,(l2s-label lbl))
                         (for/list ([arg args] [reg arg-regs])
                           (l2s-assign arg reg))
-                        (compile-L3expr e #f)))]))
+                        (compile-L3expr body #f #t)))]))
 
 ;; compile an L3expr into a list of L2stmts
-(define/contract (compile-L3expr e main?)
-  (L3expr? boolean? . -> . (listof L2stmt?))
+;; main? is #t when currently processing main
+;; end? is #t when main must jump to end to return
+(define/contract (compile-L3expr e main? end?)
+  (L3expr? boolean? boolean? . -> . (listof L2stmt?))
   (type-case L3expr e
     [l3e-let (id binding body)
              (append (compile-L3term binding id)
-                     (compile-L3expr body main?))]
+                     (compile-L3expr body main? end?))]
     [l3e-if (test then else)
-            ; TODO: generate better temp labels
             (let ([thenlbl (gen-new-thenlbl)]
                   [elselbl (gen-new-elselbl)])
               (append `(,(l2s-cjump (encode test) '= (encode 0) elselbl thenlbl)
                         ,(l2s-label thenlbl))
-                      (compile-L3expr then main?)
+                      (compile-L3expr then main? #f)
                       `(,(l2s-label elselbl))
-                      (compile-L3expr else main?)))]
+                      (compile-L3expr else main? end?)))]
     [l3e-t (t)
            (if main?
-               (append (compile-L3term t 'eax)
-                       `(,(l2s-goto endlbl)))
+               (if end?
+                   (compile-L3term t 'eax)
+                   (append (compile-L3term t 'eax)
+                           `(,(l2s-goto endlbl))))
                (type-case L3term t
                  [l3t-apply (fn args)
                             (append

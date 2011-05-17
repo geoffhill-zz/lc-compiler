@@ -208,6 +208,25 @@
 ;;; L3 PLAI TYPES
 ;;;
 
+(define-type L3prog
+  [l3prog (main l3mainfn?)
+          (others (listof l3fn?))])
+
+(define-type L3fn
+  [l3mainfn (body L3expr?)]
+  [l3fn (lbl label?)
+        (args (listof L3-v?))
+        (body L3expr?)])
+
+(define-type L3expr
+  [l3e-let (id L3-v?)
+           (binding L3term?)
+           (body L3expr?)]
+  [l3e-if (test L3-v?)
+          (then L3expr?)
+          (else L3expr?)]
+  [l3e-t (t L3term?)])
+
 (define-type L3term
   [l3t-biop (op L3-biop?) (v1 L3-v?) (v2 L3-v?)]
   [l3t-pred (pred L3-pred?) (v L3-v?)]
@@ -223,35 +242,21 @@
   [l3t-cljvars (a1 L3-v?)]
   [l3t-v (v L3-v?)])
 
-(define-type L3expr
-  [l3e-let (id L3-v?)
-           (binding L3term?)
-           (body L3expr?)]
-  [l3e-if (test L3-v?)
-          (then L3expr?)
-          (else L3expr?)]
-  [l3e-t (t L3term?)])
-
-(define-type L3fn
-  [l3fn (lbl label?)
-        (args (listof L3-v?))
-        (e L3expr?)])
-
-(define-type L3prog
-  [l3prog (main L3expr?)
-          (others (listof L3fn?))])
-
 ;;;
 ;;; S-EXPR -> L3
 ;;;
 
 (define/contract (build-L3prog src)
   (list? . -> . L3prog?)
-  (l3prog (build-L3expr (car src))
-          (map build-L3fn (cdr src))))
+  (l3prog (build-l3mainfn (car src))
+          (map build-l3fn (cdr src))))
 
-(define/contract (build-L3fn src)
-  (any/c . -> . L3fn?)
+(define/contract (build-l3mainfn src)
+  (any/c . -> . l3mainfn?)
+  (l3mainfn (build-L3expr src)))
+
+(define/contract (build-l3fn src)
+  (any/c . -> . l3fn?)
   (match src
     [`(,(? label? lbl) (,(? L3-x? args) ...) ,e)
      (l3fn lbl args (build-L3expr e))]
@@ -296,6 +301,7 @@
 (define/contract (format-L3fn fn)
   (L3fn? . -> . any/c)
   (type-case L3fn fn
+    [l3mainfn (body) (format-L3expr body)]
     [l3fn (lbl args body)
           `(,lbl ,args ,(format-L3expr body))]))
 

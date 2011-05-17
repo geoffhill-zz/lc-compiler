@@ -1,0 +1,7 @@
+((let ([x 5])
+   (let ([y (+ x x)])
+     (if y
+       (let ([z (+ y 3)])
+         (print z))
+       (let ([z (- y 3)])
+         (print z))))))
