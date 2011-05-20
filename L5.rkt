@@ -13,15 +13,15 @@
 ;;;
 
 #|
-(define/contract (compile-L5prog prog)
+(define-with-contract (compile-L5prog prog)
   (L5prog? . -> . L4prog?)
   ...)
 
-(define/contract (compile-L5fn fn)
+(define-with-contract (compile-L5fn fn)
   (L5fn? . -> . L4fn?)
   ...)
 
-(define/contract (compile-L5expr expr)
+(define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4expr?)
   ...)
 |#
@@ -31,11 +31,11 @@
 ;;;
 
 #|
-(define/contract (main fname)
+(define-with-contract (main fname)
   (string? . -> . void?)
   (call-with-input-file fname main/compile-L5))
 
-(define/contract (main/compile-L5 port)
+(define-with-contract (main/compile-L5 port)
   (input-port? . -> . void?)
   (pretty-write
    (format-L4prog

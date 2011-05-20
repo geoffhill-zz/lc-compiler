@@ -23,7 +23,7 @@
 (define endlbl ':__endofmain)
 
 ;; compile an L3prog into an L2prog
-(define/contract (compile-L3prog prog)
+(define-with-contract (compile-L3prog prog)
   (L3prog? . -> . L2prog?)
   (type-case L3prog prog
     [l3prog (main others)
@@ -31,7 +31,7 @@
                     (map compile-L3fn others))]))
 
 ;; compile an L3fn into an L2fn
-(define/contract (compile-L3fn fn)
+(define-with-contract (compile-L3fn fn)
   (L3fn? . -> . L2fn?)
   (type-case L3fn fn
     [l3mainfn (body)
@@ -46,7 +46,7 @@
 ;; compile an L3expr into a list of L2stmts
 ;; main? is #t when currently processing main
 ;; end? is #t when main must jump to end to return
-(define/contract (compile-L3expr e main? end?)
+(define-with-contract (compile-L3expr e main? end?)
   (L3expr? boolean? boolean? . -> . (listof L2stmt?))
   (type-case L3expr e
     [l3e-let (id binding body)
@@ -76,7 +76,7 @@
                                `(,(l2s-return)))]))]))
 
 ;; compile an L3term into a list of L2stmts
-(define/contract (compile-L3term t dst)
+(define-with-contract (compile-L3term t dst)
   (L3term? L3-x? . -> . (listof L2stmt?))
   (type-case L3term t
     [l3t-biop (op v1 v2)
@@ -193,7 +193,7 @@
     [l3t-cljvars (clj) (compile-L3term (l3t-aref clj 1) dst)]
     [l3t-v (v) `(,(l2s-assign dst (encode v)))]))
 
-(define/contract (encode s)
+(define-with-contract (encode s)
   (L3-v? . -> . L2-s?)
   (if (num? s)
       (+ 1 (* s 2))
@@ -203,11 +203,11 @@
 ;;; EXTERNAL INTERFACE
 ;;;
 
-(define/contract (main fname)
+(define-with-contract (main fname)
   (string? . -> . void?)
   (call-with-input-file fname main/compile))
 
-(define/contract (main/compile port)
+(define-with-contract (main/compile port)
   (input-port? . -> . void?)
   (pretty-write
    (format-L2prog

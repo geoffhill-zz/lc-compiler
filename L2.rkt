@@ -13,7 +13,7 @@
 ;;;
 
 ;; executes a replacement function on every var in an L2stmt
-(define/contract (replace-stmt-vars stmt r)
+(define-with-contract (replace-stmt-vars stmt r)
   (L2stmt? (L2-s? . -> . L2-s?) . -> . L2stmt?)
   (type-case L2stmt stmt
       [l2s-assign (lhs rhs) (l2s-assign (r lhs) (r rhs))]
@@ -76,7 +76,7 @@
 ;;;
 
 ;; creates an L2reg-base from an L2fn
-(define/contract (build-l2reg-base fn)
+(define-with-contract (build-l2reg-base fn)
   (L2fn? . -> . l2reg-base?)
   (type-case L2fn fn
     [l2fn (stmts)
@@ -99,7 +99,7 @@
 ;;;
 
 ;; creates an L2reg-succ from an L2reg-base
-(define/contract (build-l2reg-succ l2fn)
+(define-with-contract (build-l2reg-succ l2fn)
   (l2reg-base? . -> . l2reg-succ?)
   (let* ([stmts (l2reg-base-stmts l2fn)]
          [lblmap (l2reg-base-lblmap l2fn)]
@@ -111,7 +111,7 @@
 
 ;; gets the set of all successors of an L2stmt
 ;; within the context of an function
-(define/contract (successors stmt lblmap line len)
+(define-with-contract (successors stmt lblmap line len)
   (L2stmt? labelmap? integer? integer? . -> . (set/c integer?))
   (type-case L2stmt stmt
     [l2s-goto (lbl)
@@ -131,7 +131,7 @@
 ;;;
 
 ;; creates an L2reg-liveness frpm L2reg-succ
-(define/contract (build-l2reg-liveness l2fn)
+(define-with-contract (build-l2reg-liveness l2fn)
   (l2reg-succ? . -> . l2reg-liveness?)
   (let* ([stmts (l2reg-succ-stmts l2fn)]
          [succs (l2reg-succ-succs l2fn)]
@@ -153,7 +153,7 @@
             (loop new-ins new-outs))))))
 
 ;; gets the gen set for an L2stmt
-(define/contract (gen stmt)
+(define-with-contract (gen stmt)
   (L2stmt? . -> . (setof L2-x?))
   (list->set
    (filter L2-x?
@@ -175,7 +175,7 @@
              [l2s-arrayerr (lhs arg1 arg2) `(,arg1 ,arg2)]))))
 
 ;; gets the kill set for an L2stmt
-(define/contract (kill stmt)
+(define-with-contract (kill stmt)
   (L2stmt? . -> . (setof L2-x?))
   (list->set
    (filter L2-x?
@@ -201,7 +201,7 @@
 ;;;
 
 ;; creates an L2reg-graph from L2reg-liveness
-(define/contract (build-l2reg-graph l2fn)
+(define-with-contract (build-l2reg-graph l2fn)
   (l2reg-liveness? . -> . l2reg-graph?)
   (let ([nodes (graph-nodes l2fn)]
         [edges (graph-edges l2fn)])
@@ -215,12 +215,12 @@
 (define valid-sop-regs (set 'ecx))
 
 ;; predicate to see if a set contains no ignored regs
-(define/contract (no-ignored-regs s)
+(define-with-contract (no-ignored-regs s)
   (set? . -> . boolean?)
   (set-empty? (set-intersect s ignored-regs)))
 
 ;; generates the set of nodes of the graph
-(define/contract (graph-nodes l2fn)
+(define-with-contract (graph-nodes l2fn)
   (l2reg-liveness? . -> . (setof L2-x?))
   (set-union
    used-regs
@@ -232,12 +232,12 @@
 ;; gets the full variable set for an L2stmt
 ;; including all the implicitly used variables
 ;; from gen/kill
-(define/contract (var stmt)
+(define-with-contract (var stmt)
   (L2stmt? . -> . (setof L2-x?))
   (set-union (gen stmt) (kill stmt)))
 
 ;; generates the set of edges of the graph
-(define/contract (graph-edges l2fn)
+(define-with-contract (graph-edges l2fn)
   (l2reg-liveness? . -> . (setof (pairof L2-x?)))
   (let* ([stmts (l2reg-liveness-stmts l2fn)]
          [len (vector-length stmts)]
@@ -281,7 +281,7 @@
 (define spill-prefix '____spillpref)
 
 ;; creates an L2reg-color from L2reg-graph
-(define/contract (build-l2reg-color l2fn)
+(define-with-contract (build-l2reg-color l2fn)
   (l2reg-graph? . -> . l2reg-color?)
   (let loop ([l2fn l2fn]
              [offset 0]
@@ -305,7 +305,7 @@
                   (loop new-graph (- offset 4) rest))))))))
 
 ;; spills a variable in an L2fn
-(define/contract (spill fn name offset prefix)
+(define-with-contract (spill fn name offset prefix)
   (L2fn? L2-x? n4? L2-x? . -> . L2fn?)
   (let loop ([stmts (l2fn-stmts fn)]
              [temp-count 0]
@@ -367,7 +367,7 @@
 
 ;; given a spillable set, choose the best one to spill
 ;; policy decision
-(define/contract (choose-spill-var spillables nodes edges)
+(define-with-contract (choose-spill-var spillables nodes edges)
   ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
   (let ([splst (alphabetize spillables)])
     (values (first splst) (list->set (rest splst)))))
@@ -376,7 +376,7 @@
 ;; ensures that labeled functions stay labeled
 ;; TODO: fix possible multiple stack decrement bug (check interpreter)
 ;; TODO: fix addition of esp to every return/tail-call
-(define/contract (fix-stack stmts offset)
+(define-with-contract (fix-stack stmts offset)
   ((vectorof L2stmt?) integer? . -> . (vectorof L2stmt?))
   (if (zero? offset)
       stmts
@@ -395,14 +395,14 @@
         newstmts)))
 
 ;; create a color mapping from an interference graph
-(define/contract (color nodes edges)
+(define-with-contract (color nodes edges)
   ((setof L2-x?) (setof (pairof L2-x?)) . -> . (or/c colormap? false?))
   (build-colormap (set-subtract nodes used-regs)
                   nodes
                   edges
                   (colormap used-regs)))
 
-(define/contract (build-colormap rem-nodes nodes edges colors)
+(define-with-contract (build-colormap rem-nodes nodes edges colors)
   ((setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) colormap? . -> . (or/c colormap? false?))
   (if (set-empty? rem-nodes)
       colors
@@ -417,20 +417,20 @@
 
 ;; given a colorable node set, choose the best one to color
 ;; policy decision
-(define/contract (choose-next-node rem-nodes nodes edges)
+(define-with-contract (choose-next-node rem-nodes nodes edges)
   ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
   (let ([nodelst (alphabetize rem-nodes)])
     (values (first nodelst) (list->set (rest nodelst)))))
 
 ;; given a set of valid register associations, choose the best one
 ;; policy decision
-(define/contract (choose-edge valid-edges nodes egdes)
+(define-with-contract (choose-edge valid-edges nodes egdes)
   ((non-empty-setof (pairof L2-x?)) (setof L2-x?) (setof (pairof L2-x?)) . -> . (pairof L2-x?))
   (first (set->list valid-edges)))
 
 ;; extends edges so that everything that interfered
 ;; with one member of edge also interferes with other
-(define/contract (interference-union edge edges)
+(define-with-contract (interference-union edge edges)
   ((pairof L2-x?) (setof (pairof L2-x?)) . -> . (setof (pairof L2-x?)))
   (let* ([ns (set->list edge)]
          [n1 (first ns)]
@@ -444,12 +444,12 @@
                          (λ (e) (set n1 (opposite e n2))))))))
 
 ;; given an edge with one register, get the register
-(define/contract (reg-from-edge edge)
+(define-with-contract (reg-from-edge edge)
   ((pairof L2-x?) . -> . L2-x?)
   (first (set->list (set-intersect edge all-regs))))
 
 ;; given an edge and one of the nodes, get the other node
-(define/contract (opposite edge node)
+(define-with-contract (opposite edge node)
   ((pairof L2-x?) L2-x? . -> . L2-x?)
   (first (set->list (set-remove edge node))))
 
@@ -458,7 +458,7 @@
 ;;;
 
 ;; compile an L2prog into an L1prog
-(define/contract (compile-L2prog prog)
+(define-with-contract (compile-L2prog prog)
   (L2prog? . -> . L1prog?)
   (type-case L2prog prog
     [l2prog (main others)
@@ -466,7 +466,7 @@
                     (map compile-L2fn others))]))
 
 ;; compile an L2fn into an L1fn
-(define/contract (compile-L2fn fn)
+(define-with-contract (compile-L2fn fn)
   (L2fn? . -> . L1fn?)
   (let* ([base (build-l2reg-base fn)]
          [more (build-l2reg-succ base)]
@@ -482,7 +482,7 @@
             (l2reg-color-stmts color)))))))
 
 ;; compile an L2stmt into an L1stmt
-(define/contract (compile-L2stmt stmt)
+(define-with-contract (compile-L2stmt stmt)
   (L2stmt? . -> . L1stmt?)
   (type-case L2stmt stmt
       [l2s-assign (lhs rhs) (l1s-assign lhs rhs)]
@@ -505,7 +505,7 @@
 ;;; EXTERNAL INTERFACE
 ;;;
 
-(define/contract (main fn fname)
+(define-with-contract (main fn fname)
   (string? string? . -> . void?)
   (cond
     [(equal? fn "spill")
@@ -518,7 +518,7 @@
      (call-with-input-file fname main/compile)]
     [#t (error 'main "unrecognized function: ~a" fn)]))
 
-(define/contract (main/spill port)
+(define-with-contract (main/spill port)
   (input-port? . -> . void?)
   (let* ([fn (build-L2fn (read port))]
          [spilled (spill fn (read port) (read port) (read port))]
@@ -526,7 +526,7 @@
     (pretty-write lstform)
     (void)))
 
-(define/contract (main/liveness port)
+(define-with-contract (main/liveness port)
   (input-port? . -> . void?)
   (let* ([fn (build-L2fn (read port))]
          [base (build-l2reg-base fn)]
@@ -540,7 +540,7 @@
                     ,(cons 'out outs-lst)))
     (void)))
 
-(define/contract (main/graph port)
+(define-with-contract (main/graph port)
   (input-port? . -> . void?)
   (let* ([fn (build-L2fn (read port))]
          [base (build-l2reg-base fn)]
@@ -570,7 +570,7 @@
     (pretty-write colorlst)
     (void)))
 
-(define/contract (main/compile port)
+(define-with-contract (main/compile port)
   (input-port? . -> . void?)
   (pretty-write
    (format-L1prog

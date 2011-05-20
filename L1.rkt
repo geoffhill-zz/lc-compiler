@@ -14,7 +14,7 @@
 
 (define gen-new-label (make-counter ':__tlbl))
 
-(define/contract (compile-L1prog prog)
+(define-with-contract (compile-L1prog prog)
   (L1prog? . -> . string?)
   (let ([out (open-output-string)])
     (type-case L1prog prog
@@ -31,7 +31,7 @@
                 (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
                 (get-output-string out))])))
 
-(define/contract (compile-L1fn fn out main?)
+(define-with-contract (compile-L1fn fn out main?)
   (L1fn? output-port? boolean? . -> . void?)
   (type-case L1fn fn
     [l1fn (stmts)
@@ -49,12 +49,12 @@
               (fprintf out "  ret~n"))
             (void))]))
 
-(define/contract (compile-L1stmt stmt out)
+(define-with-contract (compile-L1stmt stmt out)
   (L1stmt? output-port? . -> . void?)
   (fprintf out (asm-stmt stmt))
   (void))
 
-(define/contract (asm-stmt stmt)
+(define-with-contract (asm-stmt stmt)
   (L1stmt? . -> . string?)
   (type-case L1stmt stmt
     [l1s-assign (lhs rhs)
@@ -155,14 +155,14 @@
                            (asm-s arg1)
                            (asm-s 8) (asm-s 'esp))]))
 
-(define/contract (asm-s s)
+(define-with-contract (asm-s s)
   (L2-s? . -> . string?)
   (cond
     [(num? s) (string-append "$" (number->string s))]
     [(label? s) (substring (symbol->string s) 1)]
     [else (string-append "%" (symbol->string s))]))
 
-(define/contract (asm-s-lsb s)
+(define-with-contract (asm-s-lsb s)
   (L2-s? . -> . string?)
   (if (L1-cx? s)
       (case s
@@ -173,11 +173,11 @@
       (asm-s s)))
 
 ;; main function
-(define/contract (main fname)
+(define-with-contract (main fname)
   (string? . -> . void?)
   (call-with-input-file fname main/compile))
 
-(define/contract (main/compile port)
+(define-with-contract (main/compile port)
   (input-port? . -> . void?)
   (display
    (compile-L1prog

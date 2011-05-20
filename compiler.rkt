@@ -18,11 +18,12 @@
 ;;; EXTERNAL INTERFACE
 ;;;
 
-(define/contract (main fname)
+#|
+(define-with-contract (main fname)
   (string? . -> . void?)
   (call-with-input-file fname main/compile-L))
 
-(define/contract (main/compile-L port)
+(define-with-contract (main/compile-L port)
   (input-port? . -> . void?)
   (compile-L1prog
    (compile-L2prog
@@ -30,4 +31,4 @@
      (compile-L4prog
       (compile-L5prog
        (build-L5prog (read port))))))))
-
+|#

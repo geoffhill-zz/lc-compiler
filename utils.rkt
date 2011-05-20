@@ -4,6 +4,16 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
+; macro for function definitions
+; enabling this value causes contracts to be enforced
+(define-syntax (define-with-contract stx)
+  (define enforce-contracts? #f)
+  (syntax-case stx ()
+    [(define-with-contract (fn args ...) fn-contract body-exprs ...)
+     (if enforce-contracts?
+         #'(define/contract (fn args ...) fn-contract body-exprs ...)
+         #'(define (fn args ...) body-exprs ...))]))
+
 ; like set/c, but works as a predicate
 (define (setof inside-pred?)
   (flat-contract
@@ -26,17 +36,17 @@
           (= (set-count x) 2)))))
 
 ; given a set, return list with all elems
-(define/contract (set->list s)
+(define-with-contract (set->list s)
   (set? . -> . list?)
   (set-map s values))
 
 ; given a list, create set with all elems
-(define/contract (list->set l)
+(define-with-contract (list->set l)
   (list? . -> . set?)
   (apply set l))
 
 ; return an alphabetized version of lists, assoc lists, sets
-(define/contract (alphabetize l)
+(define-with-contract (alphabetize l)
   ((or/c (listof symbol?)
          (listof (cons/c symbol? any/c))
          (set/c symbol?))
@@ -46,23 +56,24 @@
   (cond
     [(null? l) '()]
     [((listof symbol?) l) (sort l string<? #:key symbol->string)]
-    [((listof (cons/c symbol? any/c)) l) (sort l string<? #:key (λ (l) (symbol->string (car l))))]
+    [((listof (cons/c symbol? any/c)) l)
+     (sort l string<? #:key (λ (l) (symbol->string (car l))))]
     [(set? l) (alphabetize (set->list l))]))
 
 ; fixes the weird behavior of the set utilities which require
 ; at least one argument
-(define/contract (setlst-union setlst)
+(define-with-contract (setlst-union setlst)
   ((listof set?) . -> . set?)
   (apply set-union (cons (set) setlst)))
 
 ; giben a set and a predicate, return a filtered set
-(define/contract (set-filter s pred)
+(define-with-contract (set-filter s pred)
   (set? procedure? . -> . set?)
   (list->set (filter pred (set->list s))))
 
 ; given a vectorof setof symbols, return a listof listof symbols 
 ; vector stays in order, but set is alphabetized
-(define/contract (vs->ll vs)
+(define-with-contract (vs->ll vs)
   ((vectorof (set/c symbol?)) . -> . (listof (listof symbol?)))
   (map alphabetize
        (vector->list (vector-map (λ (s) (set->list s)) vs))))
@@ -70,7 +81,7 @@
 ; given a hashof symbols keyed by symbols, return a listof listof symbols
 ; outer list alphabetized by the key
 ; inner lists have 2 elements
-(define/contract (hts->list ht)
+(define-with-contract (hts->list ht)
   ((hash/c symbol? symbol?) . -> . (listof (listof symbol?)))
   (map (λ (entry) (list (car entry) (cdr entry)))
        (alphabetize (hash->list ht))))
@@ -78,14 +89,14 @@
 ; given a hashof setof symbols keyed by symbols, return a listof listof symbols
 ; outer list alphabetized by the key
 ; inner lists have key as first element, rest alphabetized
-(define/contract (htss->list ht)
+(define-with-contract (htss->list ht)
   ((hash/c symbol? (set/c symbol?)) . -> . (listof (listof symbol?)))
   (map (λ (entry) (cons (car entry) (alphabetize (set->list (cdr entry)))))
        (alphabetize (hash->list ht))))
 
 ; gets the set of every set combination of 2 items from a set
 ; outer set has size n-choose-2, inner sets have size 2
-(define/contract (powerset pool)
+(define-with-contract (powerset pool)
   (set? . -> . (set/c set?))
   (let ([pred (cond [(set-eq? pool) eq?]
                     [(set-eqv? pool) eqv?]
@@ -104,19 +115,19 @@
     set2))
 
 ; gets every possible pair, given a first term and a set of second terms
-(define/contract (pairs v pool)
+(define-with-contract (pairs v pool)
   (any/c set? . -> . (set/c set?))
   (set-filter (powerset (set-add pool v))
               (λ (s) (set-member? s v))))
 
 ;; create a symbol by concatenating a prefix and a counter
-(define/contract (temp-var prefix counter)
+(define-with-contract (temp-var prefix counter)
   (symbol? integer? . -> . symbol?)
   (string->symbol (string-append (symbol->string prefix)
                                  (number->string counter))))
 
 ;; create a symbol creation function
-(define/contract (make-counter prefix)
+(define-with-contract (make-counter prefix)
   (symbol? . -> . (-> symbol?))
   (let ([p (symbol->string prefix)]
         [i 0])
