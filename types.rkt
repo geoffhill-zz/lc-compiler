@@ -328,3 +328,82 @@
     [l3t-cljproc (a1) `(closure-proc ,a1)]
     [l3t-cljvars (a1) `(closure-vars ,a1)]
     [l3t-v (v) v]))
+
+;;;
+;;; L4 PLAI TYPES
+;;;
+
+(define-type L4prog
+  [l4prog (main l4mainfn?)
+          (others (listof l4fn?))])
+
+(define-type L4fn
+  [l4mainfn (body L4expr?)]
+  [l4fn (lbl label?)
+        (args (listof L4-v?))
+        (body L4expr?)])
+
+(define-type L4expr
+  [l4e-let (id L4-v?)
+           (binding L4expr?)
+           (body L4expr?)]
+  [l4e-if (test L4expr?)
+          (then L4expr?)
+          (else L4expr?)]
+  [l4e-app (fn L4expr?)
+           (args (listof L4expr?))]
+  [l4e-v (v L4-v?)])
+
+;;;
+;;; S-EXPR -> L4
+;;;
+
+(define/contract (build-L4prog src)
+  (list? . -> . L4prog?)
+  (l4prog (build-l4mainfn (car src))
+          (map build-l4fn (cdr src))))
+
+(define/contract (build-l4mainfn src)
+  (any/c . -> . l4mainfn?)
+  (l4mainfn (build-L4expr src)))
+
+(define/contract (build-l4fn src)
+  (any/c . -> . l4fn?)
+  (match src
+    [`(,(? label? lbl) (,(? L4-x? args) ...) ,e)
+     (l4fn lbl args (build-L4expr e))]
+    [_ (error 'L4 "not a well-formed function")]))
+
+(define/contract (build-L4expr src)
+  (any/c . -> . L4expr?)
+  (match src
+    [`(let ([,(? L4-x? id) ,e1]) ,e2) (l4e-let id (build-L4expr e1) (build-L4expr e2))]
+    [`(if ,e1 ,e2 ,e3) (l4e-if (build-L4expr e1) (build-L4expr e2) (build-L4expr e3))]
+    [`(,fn ,args ...) (l4e-app (build-L4expr fn) (map build-L4expr args))]
+    [_ (error 'L4 "not a well-formed expression")]))
+
+;;;
+;;; L4 -> S-EXPR
+;;;
+
+(define/contract (format-L4prog prog)
+  (L4prog? . -> . any/c)
+  (type-case L4prog prog
+    [l4prog (main others)
+            `(,(format-L4expr main)
+              ,(map format-L4fn others))]))
+
+(define/contract (format-L4fn fn)
+  (L4fn? . -> . any/c)
+  (type-case L4fn fn
+    [l4mainfn (body) (format-L4expr body)]
+    [l4fn (lbl args body)
+          `(,lbl ,args ,(format-L4expr body))]))
+
+(define/contract (format-L4expr expr)
+  (L4expr? . -> . any/c)
+  (type-case L4expr expr
+    [l4e-let (id binding body) `(let ([,id ,(format-L4expr binding)]) ,(format-L4expr body))]
+    [l4e-if (test then else) `(if ,(format-L4expr test) ,(format-L4expr then) ,(format-L4expr else))]
+    [l4e-app (fn args) (append `(,(format-L4expr fn)) (map format-L4expr args))]
+    [l4e-v (v) v]))

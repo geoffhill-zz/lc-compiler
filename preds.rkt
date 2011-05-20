@@ -105,3 +105,20 @@
   (flat-named-contract
    'L3-v?
    (or/c num? label? L3-x?)))
+
+(define L4-keyword?
+  (flat-named-contract
+   'L4-keyword?
+   (symbols 'let 'if)))
+
+(define L4-x?
+  (flat-named-contract
+   'L4-x?
+   (and/c symbol?
+          (not/c label?)
+          (not/c L4-keyword?))))
+
+(define L4-v?
+  (flat-named-contract
+   'L4-v?
+   (or/c num? label? L4-x?)))
