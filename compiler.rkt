@@ -5,15 +5,16 @@
 ;;; Spring 2011
 
 (require (file "types.rkt"))
-(require (file "preds.rkt"))
 (require (file "utils.rkt"))
 
+#|
 (require (file "L5.rkt"))
 (require (file "L4.rkt"))
 (require (file "L3.rkt"))
 (require (file "L2.rkt"))
 (require (file "L1.rkt"))
-  
+|#
+
 ;;;
 ;;; EXTERNAL INTERFACE
 ;;;
