@@ -4,15 +4,31 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
+(require (file "preds.rkt"))
+
 ; macro for function definitions
 ; enabling this value causes contracts to be enforced
 (define-syntax (define-with-contract stx)
-  (define enforce-contracts? #f)
+  (define enforce-contracts? #t)
   (syntax-case stx ()
     [(define-with-contract (fn args ...) fn-contract body-exprs ...)
      (if enforce-contracts?
          #'(define/contract (fn args ...) fn-contract body-exprs ...)
          #'(define (fn args ...) body-exprs ...))]))
+
+;; namemap type
+;; immutable hash, maps variables to variables or labels to labels
+;; defines constructor, contract, and label simplification
+(define namemap hash)
+(define namemap?
+  (flat-named-contract
+   'namemap?
+   (hash/c symbol? symbol? #:immutable #t #:flat? #t)))
+(define (namemap-lbls-only nm)
+  (make-immutable-hash
+   (filter (not/c null?)
+           (hash-map nm (λ (k v) (if (label? k) (cons k v) '()))))))
+
 
 ; like set/c, but works as a predicate
 (define (setof inside-pred?)

@@ -109,7 +109,7 @@
 (define L4-keyword?
   (flat-named-contract
    'L4-keyword?
-   (symbols 'let 'if)))
+   (symbols 'let 'if 'begin)))
 
 (define L4-x?
   (flat-named-contract
@@ -122,3 +122,14 @@
   (flat-named-contract
    'L4-v?
    (or/c num? label? L4-x?)))
+
+(define L4-builtin?
+  (flat-named-contract
+   'L4-builtin?
+   (symbols
+    '+ '- '* '< '<= '=
+    'number? 'a?
+    'new-array 'new-tuple
+    'aref 'aset 'alen
+    'print 'make-closure
+    'closure-proc 'closure-vars)))

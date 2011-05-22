@@ -380,6 +380,7 @@
     [`(let ([,(? L4-x? id) ,e1]) ,e2) (l4e-let id (build-L4expr e1) (build-L4expr e2))]
     [`(if ,e1 ,e2 ,e3) (l4e-if (build-L4expr e1) (build-L4expr e2) (build-L4expr e3))]
     [`(,fn ,args ...) (l4e-app (build-L4expr fn) (map build-L4expr args))]
+    [(? L4-v?) (l4e-v src)]
     [_ (error 'L4 "not a well-formed expression")]))
 
 ;;;

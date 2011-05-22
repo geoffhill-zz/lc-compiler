@@ -7,6 +7,11 @@
 
 (require (file "utils.rkt"))
 
+(test (namemap-lbls-only (namemap))
+      (namemap))
+(test (namemap-lbls-only (namemap ':a ':b ':c ':d 'a 'b 'c 'd ':y ':z))
+      (namemap ':a ':b ':c ':d ':y ':z))
+
 (test (alphabetize '()) '())
 (test (alphabetize '(t)) '(t))
 (test (alphabetize '(z y x)) '(x y z))
