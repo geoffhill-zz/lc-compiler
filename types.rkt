@@ -131,16 +131,6 @@
 ;;; L5 PLAI TYPES
 ;;;
 
-(define-type L5prog
-  [l5prog (main l5mainfn?)
-          (others (listof l5fn?))])
-
-(define-type L5fn
-  [l5mainfn (body L5expr?)]
-  [l5fn (lbl label?)
-        (args (listof L5-var?))
-        (body L5expr?)])
-
 (define-type L5expr
   [l5e-lambda (args (listof L5-var?))
               (body L5expr?)]

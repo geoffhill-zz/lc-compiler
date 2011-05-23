@@ -155,22 +155,6 @@
 ;;; S-EXPR -> L5
 ;;;
 
-(define-with-contract (build-L5prog src)
-  (list? . -> . L5prog?)
-  (l4prog (build-l5mainfn (car src))
-          (map build-l5fn (cdr src))))
-
-(define-with-contract (build-l5mainfn src)
-  (any/c . -> . l5mainfn?)
-  (l4mainfn (build-L5expr src)))
-
-(define-with-contract (build-l5fn src)
-  (any/c . -> . l5fn?)
-  (match src
-    [`(,(? label? lbl) (,(? L5-var? args) ...) ,e)
-     (l5fn lbl args (build-L5expr e))]
-    [_ (error 'L5 "not a well-formed function")]))
-
 (define-with-contract (build-L5expr src)
   (any/c . -> . L5expr?)
   (match src

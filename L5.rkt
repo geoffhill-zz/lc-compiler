@@ -14,19 +14,9 @@
 ;;; L5 -> L4 COMPILATION
 ;;;
 
-#|
-(define-with-contract (compile-L5prog prog)
-  (L5prog? . -> . L4prog?)
-  ...)
-
-(define-with-contract (compile-L5fn fn)
-  (L5fn? . -> . L4fn?)
-  ...)
-
 (define-with-contract (compile-L5expr expr)
-  (L5expr? . -> . L4expr?)
-  ...)
-|#
+  (L5expr? . -> . L4prog?)
+  '...)
   
 ;;;
 ;;; EXTERNAL INTERFACE
@@ -41,6 +31,6 @@
   (input-port? . -> . void?)
   (pretty-write
    (format-L4prog
-    (compile-L5prog
-     (build-L5prog (read port))))))
+    (compile-L5expr
+     (build-L5expr (read port))))))
 |#

@@ -152,20 +152,6 @@
 ;;; L5 -> S-EXPR
 ;;;
 
-(define-with-contract (format-L5prog prog)
-  (L5prog? . -> . any/c)
-  (type-case L5prog prog
-    [l5prog (main others)
-            (cons (format-L5fn main)
-                  (map format-L5fn others))]))
-
-(define-with-contract (format-L5fn fn)
-  (L5fn? . -> . any/c)
-  (type-case L5fn fn
-    [l5mainfn (body) (format-L5expr body)]
-    [l5fn (lbl args body)
-          `(,lbl ,args ,(format-L5expr body))]))
-
 (define-with-contract (format-L5expr expr)
   (L5expr? . -> . any/c)
   (type-case L5expr expr
