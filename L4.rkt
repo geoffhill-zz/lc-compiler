@@ -61,10 +61,9 @@
   (L4expr? namemap? (-> symbol?) (-> label?) . -> . (values L4expr? namemap?))
   (type-case L4expr expr
     [l4e-let (id binding body)
-             (let* ([newid (varfn)]
-                    [changes (hash-set changes id newid)])
-               (let-values ([(binding changes) (rename-L4expr binding changes varfn lblfn)])
-                 (let-values ([(body changes) (rename-L4expr body changes varfn lblfn)])
+             (let-values ([(binding changes) (rename-L4expr binding changes varfn lblfn)])
+               (let ([newchanges (hash-set changes id (varfn))])
+                 (let-values ([(body newchanges) (rename-L4expr body newchanges varfn lblfn)])
                    (values (l4e-let newid binding body) changes))))]
     [l4e-if (test then else)
             (let-values ([(test changes) (rename-L4expr test changes varfn lblfn)])
