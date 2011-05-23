@@ -13,86 +13,66 @@
 ;;;
 
 ;; renames all the variables in L4 programs
-;; labels carry across functions
 ;; variables do not carry across functions
 ;; lets always generate new variables, ignoring existing ones
 
 (define-with-contract (rename-L4prog prog)
   (L4prog? . -> . L4prog?)
   (define varfn (make-counter 'var_))
-  (define lblfn (make-counter ':lbl_))
   (type-case L4prog prog
     [l4prog (main others)
-            (let-values ([(main changes) (rename-L4fn main (namemap) varfn lblfn)])
-              (let ([changes (namemap-lbls-only changes)])
-                (l4prog main
-                        (let loop ([others others]
-                                   [renamed '()]
-                                   [changes changes])
-                          (if (null? others)
-                              (reverse renamed)
-                              (let-values ([(fn changes) (rename-L4fn (first others) changes varfn lblfn)])
-                                (let ([changes (namemap-lbls-only changes)])
-                                  (loop (rest others) (cons fn renamed) changes))))))))]))
+            (l4prog (rename-L4fn main varfn)
+                    (map (λ (fn) (rename-L4fn fn varfn)) others))]))
 
-(define-with-contract (rename-L4fn fn changes varfn lblfn)
-  (L4fn? namemap? (-> symbol?) (-> label?) . -> . (values L4fn? namemap?))
+(define-with-contract (rename-L4fn fn varfn)
+  (L4fn? (-> symbol?) . -> . L4fn?)
   (type-case L4fn fn
     [l4mainfn (body)
-              (let-values ([(body changes) (rename-L4expr body changes varfn lblfn)])
-                (values (l4mainfn body) changes))]
+              (l4mainfn (rename-L4expr body (namemap) varfn))]
     [l4fn (lbl args body)
-          (let* ([newlbl (hash-ref changes lbl lblfn)]
-                 [changes (hash-set changes lbl newlbl)])
-            (let-values ([(newargs changes)
-                          (let loop ([args args]
-                                     [renamed '()]
-                                     [changes changes])
-                            (if (null? args)
-                                (values (reverse renamed) changes)
-                                (let* ([arg (first args)]
-                                       [newarg (hash-ref changes arg varfn)]
-                                       [changes (hash-set changes arg newarg)])
-                                  (loop (rest args) (cons newarg renamed) changes))))])
-              (let-values ([(body changes) (rename-L4expr body changes varfn lblfn)])
-                (values (l4fn newlbl newargs body) changes))))]))
+          (let-values ([(newargs changes)
+                        (let loop ([args args]
+                                   [renamed '()]
+                                   [changes (namemap)])
+                          (if (null? args)
+                              (values (reverse renamed) changes)
+                              (let* ([arg (first args)]
+                                     [newarg (hash-ref changes arg varfn)]
+                                     [changes (hash-set changes arg newarg)])
+                                (loop (rest args) (cons newarg renamed) changes))))])
+            (l4fn lbl newargs (rename-L4expr body changes varfn)))]))
 
-(define-with-contract (rename-L4expr expr changes varfn lblfn)
-  (L4expr? namemap? (-> symbol?) (-> label?) . -> . (values L4expr? namemap?))
+(define-with-contract (rename-L4expr expr changes varfn)
+  (L4expr? namemap? (-> symbol?) . -> . L4expr?)
   (type-case L4expr expr
     [l4e-let (id binding body)
-             (let-values ([(binding changes) (rename-L4expr binding changes varfn lblfn)])
-               (let ([newchanges (hash-set changes id (varfn))])
-                 (let-values ([(body newchanges) (rename-L4expr body newchanges varfn lblfn)])
-                   (values (l4e-let newid binding body) changes))))]
+             (let* ([newid (varfn)]
+                    [newbinding (rename-L4expr binding changes varfn)]
+                    [newchanges (hash-set changes id newid)]
+                    [newbody (rename-L4expr body newchanges varfn)])
+               (l4e-let newid newbinding newbody))]
     [l4e-if (test then else)
-            (let-values ([(test changes) (rename-L4expr test changes varfn lblfn)])
-              (let-values ([(then changes) (rename-L4expr then changes varfn lblfn)])
-                (let-values ([(else changes) (rename-L4expr else changes varfn lblfn)])
-                  (values (l4e-if test then else) changes))))]
+            (let* ([newtest (rename-L4expr test changes varfn)]
+                   [newthen (rename-L4expr then changes varfn)]
+                   [newelse (rename-L4expr else changes varfn)])
+              (l4e-if newtest newthen newelse))]
     [l4e-app (fn args)
-             (let-values ([(fn changes) (rename-L4expr fn changes varfn lblfn)])
-               (let loop ([args args]
-                          [renamed '()]
-                          [changes changes])
-                 (if (null? args)
-                     (values (l4e-app fn (reverse renamed)) changes)
-                     (let-values ([(arg changes) (rename-L4expr (first args) changes varfn lblfn)])
-                       (loop (rest args) (cons arg renamed) changes)))))]
+             (let ([newfn (rename-L4expr fn changes varfn)]
+                   [newargs (let loop ([args args]
+                                       [renamed '()])
+                              (if (null? args)
+                                  (reverse renamed)
+                                  (let ([newarg (rename-L4expr (first args) changes varfn)])
+                                    (loop (rest args) (cons newarg renamed)))))])
+               (l4e-app newfn newargs))]
     [l4e-begin (fst snd)
-               (let-values ([(fst changes) (rename-L4expr fst changes varfn lblfn)])
-                 (let-values ([(snd changes) (rename-L4expr snd changes varfn lblfn)])
-                   (values (l4e-begin fst snd) changes)))]
+               (let* ([newfst (rename-L4expr fst changes varfn)]
+                      [newsnd (rename-L4expr snd changes varfn)])
+                 (l4e-begin newfst newsnd))]
     [l4e-v (v)
-           (cond
-             [(number? v) (values expr changes)]
-             [(L4-builtin? v) (values expr changes)]
-             [(label? v) (let* ([newlbl (hash-ref changes v lblfn)]
-                                [changes (hash-set changes v newlbl)])
-                           (values (l4e-v newlbl) changes))]
-             [else (let* ([newv (hash-ref changes v varfn)]
-                          [changes (hash-set changes v newv)])
-                     (values (l4e-v newv) changes))])]))
+           (if (or (number? v) (label? v) (L4-builtin? v))
+               (l4e-v v)
+               (l4e-v (hash-ref changes v varfn)))]))
 
 
 ;;;
