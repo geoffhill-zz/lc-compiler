@@ -14,7 +14,7 @@ fi
 
 if [ -z "$1" ];
   then
-    echo "Usage: ./L4c PROGRAM"
+    echo "Usage: L4c PROGRAM"
   else
     "$RACKET_PATH" -tm "$DIR/L4.rkt" "$1"
 fi
