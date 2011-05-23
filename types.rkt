@@ -350,6 +350,8 @@
   [l4e-if (test L4expr?)
           (then L4expr?)
           (else L4expr?)]
+  [l4e-begin (fst L4expr?)
+             (snd L4expr?)]
   [l4e-app (fn L4expr?)
            (args (listof L4expr?))]
   [l4e-v (v L4-v?)])
@@ -379,6 +381,7 @@
   (match src
     [`(let ([,(? L4-x? id) ,e1]) ,e2) (l4e-let id (build-L4expr e1) (build-L4expr e2))]
     [`(if ,e1 ,e2 ,e3) (l4e-if (build-L4expr e1) (build-L4expr e2) (build-L4expr e3))]
+    [`(begin ,e1 ,e2) (l4e-begin (build-L4expr e1) (build-L4expr e2))]
     [`(,fn ,args ...) (l4e-app (build-L4expr fn) (map build-L4expr args))]
     [(? L4-v?) (l4e-v src)]
     [_ (error 'L4 "not a well-formed expression")]))
@@ -406,5 +409,6 @@
   (type-case L4expr expr
     [l4e-let (id binding body) `(let ([,id ,(format-L4expr binding)]) ,(format-L4expr body))]
     [l4e-if (test then else) `(if ,(format-L4expr test) ,(format-L4expr then) ,(format-L4expr else))]
+    [l4e-begin (fst snd) `(begin ,(format-L4expr fst) ,(format-L4expr snd))]
     [l4e-app (fn args) (append `(,(format-L4expr fn)) (map format-L4expr args))]
     [l4e-v (v) v]))
