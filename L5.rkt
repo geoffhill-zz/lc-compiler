@@ -32,7 +32,7 @@
 (define cljmap?
   (flat-named-contract
    'cljmap?
-   (hash/c L5expr? LiftedClj #:immutable #t #:flat? #t)))
+   (hash/c L5expr? LiftedClj? #:immutable #t #:flat? #t)))
 
 (define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4prog?)
@@ -91,7 +91,7 @@
   (L5expr? cljmap? . -> . L5expr?)
   (type-case L5expr expr
     [l5e-lambda (args body)
-                (let ([newlbl (gen-new-L5-cljlbl)]
+                (let ([newlbl (gen-new-l5-cljlbl)]
                       [vs (free-vars body)])
                   expr)]
     [l5e-let (id binding body) expr]
