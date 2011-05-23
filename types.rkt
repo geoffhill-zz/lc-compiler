@@ -151,3 +151,18 @@
   [l5e-prim (prim L5-builtin?)]
   [l5e-var (var L5-var?)]
   [l5e-num (num num?)])
+
+; type-case template
+#|
+(type-case L5expr expr
+  [l5e-lambda (args body) '...]
+  [l5e-let (id binding body) '...]
+  [l5e-letrec (id binding body) '...]
+  [l5e-if (test then else) '...]
+  [l5e-newtuple (args) '...]
+  [l5e-begin (fst snd) '...]
+  [l5e-app (fn args) '...]
+  [l5e-prim (prim) '...]
+  [l5e-var (var) '...]
+  [l5e-num (num) '...])
+|#

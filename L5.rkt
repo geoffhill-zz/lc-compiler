@@ -14,16 +14,31 @@
 ;;; L5 -> L4 COMPILATION
 ;;;
 
+;; program runs through this transformation:
+;;
+;; (1) cljmap built up:
+;;    keys are every lambda in the function
+;;    duplicate lambdas get duplicate closures <- THIS IS BAD
+;;    vals are the corresponding LiftedCljs
+;; (2) using cljmap, lambdas and apps all replaced
+
 (define gen-new-l5-cljlbl (make-counter ':l5_clj_))
 
 (define-type LiftedClj
   [lft-clj (lbl label?)
            (args (listof L5-var?))
            (body L5expr?)])
+(define cljmap hash)
+(define cljmap?
+  (flat-named-contract
+   'cljmap?
+   (hash/c L5expr? LiftedClj #:immutable #t #:flat? #t)))
 
 (define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4prog?)
-  (let-values ([(main others) (lambda-lift expr)])
+  (let* ([cljs (make-closures expr)]
+         [main (lambda-lift expr cljs)]
+         [others (hash-values cljs)])
     (l4prog (l4mainfn (convert-L5expr main))
             (map (λ (clj)
                    (type-case LiftedClj clj
@@ -33,7 +48,7 @@
 
 (define-with-contract (convert-L5expr expr)
   (L5expr? . -> . L4expr?)
-  ; TODO: stricten contract to only allow lambda-lifted L5s
+  ; TODO: stricten contract to only allow lambda-lifted L5exprs
   (type-case L5expr expr
     [l5e-lambda (args body)
                 (error 'L5 "should not see lambda after lambda-lifting")]
@@ -58,9 +73,36 @@
     [l5e-var (var) (l4e-v var)]
     [l5e-num (num) (l4e-v num)]))
 
-(define-with-contract (lambda-lift expr)
-  (L5expr? . -> . (values L5expr? (listof LiftedClj?)))
-  (values expr '()))
+(define-with-contract (make-closures expr)
+  (L5expr? . -> . cljmap?)
+  (type-case L5expr expr
+    [l5e-lambda (args body) (cljmap)]
+    [l5e-let (id binding body) (cljmap)]
+    [l5e-letrec (id binding body) (cljmap)]
+    [l5e-if (test then else) (cljmap)]
+    [l5e-newtuple (args) (cljmap)]
+    [l5e-begin (fst snd) (cljmap)]
+    [l5e-app (fn args) (cljmap)]
+    [l5e-prim (prim) (cljmap)]
+    [l5e-var (var) (cljmap)]
+    [l5e-num (num) (cljmap)]))
+
+(define-with-contract (lambda-lift expr cljs)
+  (L5expr? cljmap? . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (let ([newlbl (gen-new-L5-cljlbl)]
+                      [vs (free-vars body)])
+                  expr)]
+    [l5e-let (id binding body) expr]
+    [l5e-letrec (id binding body) expr]
+    [l5e-if (test then else) expr]
+    [l5e-newtuple (args) expr]
+    [l5e-begin (fst snd) expr]
+    [l5e-app (fn args) expr]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) expr]
+    [l5e-num (num) expr]))
 
 (define-with-contract (free-vars expr)
   (L5expr? . -> . (setof L5-var?))

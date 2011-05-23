@@ -154,6 +154,5 @@
   (flat-named-contract
    'L5-var?
    (and/c symbol?
-          (not/c label?)
           (not/c L5-keyword?)
           (not/c L5-builtin?))))
