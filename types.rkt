@@ -295,8 +295,8 @@
   (L3prog? . -> . any/c)
   (type-case L3prog prog
     [l3prog (main others)
-            `(,(format-L3expr main)
-              ,(map format-L3fn others))]))
+            (cons (format-L3fn main)
+                  (map format-L3fn others))]))
 
 (define-with-contract (format-L3fn fn)
   (L3fn? . -> . any/c)
@@ -315,8 +315,8 @@
 (define-with-contract (format-L3term term)
   (L3term? . -> . any/c)
   (type-case L3term term
-    [l3t-biop (op v1 v2) `(,op v1 v2)]
-    [l3t-pred (pred v) `(,pred v)]
+    [l3t-biop (op v1 v2) `(,op ,v1 ,v2)]
+    [l3t-pred (pred v) `(,pred ,v)]
     [l3t-apply (fn args) (cons fn args)]
     [l3t-newarray (len init) `(new-array ,len ,init)]
     [l3t-newtuple (args) (cons 'new-tuple args)]
@@ -394,8 +394,8 @@
   (L4prog? . -> . any/c)
   (type-case L4prog prog
     [l4prog (main others)
-            `(,(format-L4expr main)
-              ,(map format-L4fn others))]))
+            (cons (format-L3fn main)
+                  (map format-L3fn others))]))
 
 (define-with-contract (format-L4fn fn)
   (L4fn? . -> . any/c)
@@ -410,5 +410,5 @@
     [l4e-let (id binding body) `(let ([,id ,(format-L4expr binding)]) ,(format-L4expr body))]
     [l4e-if (test then else) `(if ,(format-L4expr test) ,(format-L4expr then) ,(format-L4expr else))]
     [l4e-begin (fst snd) `(begin ,(format-L4expr fst) ,(format-L4expr snd))]
-    [l4e-app (fn args) (append `(,(format-L4expr fn)) (map format-L4expr args))]
+    [l4e-app (fn args) (map format-L4expr (cons fn args))]
     [l4e-v (v) v]))

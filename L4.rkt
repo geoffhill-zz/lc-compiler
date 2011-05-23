@@ -15,6 +15,7 @@
 ;; renames all the variables in L4 programs
 ;; labels carry across functions
 ;; variables do not carry across functions
+;; lets always generate new variables, ignoring existing ones
 
 (define-with-contract (rename-L4prog prog)
   (L4prog? . -> . L4prog?)
@@ -60,7 +61,7 @@
   (L4expr? namemap? (-> symbol?) (-> label?) . -> . (values L4expr? namemap?))
   (type-case L4expr expr
     [l4e-let (id binding body)
-             (let* ([newid (hash-ref changes id varfn)]
+             (let* ([newid (varfn)]
                     [changes (hash-set changes id newid)])
                (let-values ([(binding changes) (rename-L4expr binding changes varfn lblfn)])
                  (let-values ([(body changes) (rename-L4expr body changes varfn lblfn)])
@@ -121,14 +122,17 @@
                  (error 'L4 "should never find binding expressions in normalized expr"))
                (l3e-let id (l3e-t-t binding) (compile-L4expr body)))]
     [l4e-if (test then else)
-            (l3e-if (compile-L4expr test)
-                    (compile-L4expr then)
-                    (compile-L4expr else))]
+            (let ([test (compile-L4expr test)])
+              (unless (l3e-t? test)
+                (error 'L4 "should never find test expressions in normalized expr, got ~a" test))
+              (l3e-if (l3t-v-v (l3e-t-t test))
+                      (compile-L4expr then)
+                      (compile-L4expr else)))]
     [l4e-begin (fst snd)
                (error 'L4 "should never find begin in normalized expr")]
     [l4e-app (fn args)
              (l3e-t (build-L3term (format-L4expr expr)))]
-    [l4e-v (v) (l3t-v v)]))
+    [l4e-v (v) (l3e-t (l3t-v v))]))
 
 ;;;
 ;;; A-NORMALIZATION
@@ -175,20 +179,20 @@
              (if (l4e-v? expr)
                  (l4e-if expr (find then ctxt varfn) (find else ctxt varfn))
                  (let ([id (varfn)])
-                   (l4e-let id expr (l4e-if id (find then ctxt varfn) (find else ctxt varfn)))))]
+                   (l4e-let id expr (l4e-if (l4e-v id) (find then ctxt varfn) (find else ctxt varfn)))))]
     [fn-ctxt (done todo ctxt)
              (if (l4e-v? expr)
                  (if (null? todo)
                      (let ([terms (reverse (cons expr done))])
                        (fill (l4e-app (first terms) (rest terms)) ctxt varfn))
                      (find (first todo) (fn-ctxt (cons expr done) (rest todo) ctxt) varfn))
-                 (if (null? todo)
-                     (let* ([id (varfn)]
-                            [terms (reverse (cons (l4e-v id) done))])
-                       (l4e-let id expr (fill (l4e-app (first terms) (rest terms)) ctxt varfn)))
-                     (let ([id (varfn)])
+                 (let* ([id (varfn)]
+                        [newdone (cons (l4e-v id) done)])
+                   (if (null? todo)
+                       (let ([terms (reverse newdone)])
+                         (l4e-let id expr (fill (l4e-app (first terms) (rest terms)) ctxt varfn)))
                        (l4e-let id expr (find (first todo)
-                                              (fn-ctxt (cons (l4e-v id) done) (rest todo) ctxt)
+                                              (fn-ctxt newdone (rest todo) ctxt)
                                               varfn)))))]))
 
 ;;;
