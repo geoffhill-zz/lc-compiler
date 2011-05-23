@@ -22,6 +22,8 @@
 ;;    vals are the corresponding LiftedCljs
 ;; (2) using cljmap, lambdas and apps all replaced
 
+; TODO: eliminate letrecs
+
 (define-type LiftedClj
   [lft-clj (lbl label?)
            (args (listof L5-var?))
@@ -73,7 +75,6 @@
 
 (define-with-contract (convert-L5expr expr)
   (L5expr? . -> . L4expr?)
-  ; TODO: stricten contract to only allow lambda-lifted L5exprs
   (type-case L5expr expr
     [l5e-lambda (args body)
                 (error 'L5 "should not see lambda after lambda-lifting")]
