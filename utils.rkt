@@ -6,8 +6,6 @@
 
 (require (file "preds.rkt"))
 
-; TODO: move namemap into types.rkt encapsulating hash-ref and hash-set
-
 ; macro for function definitions
 ; enabling this value causes contracts to be enforced
 (define-syntax (define-with-contract stx)
@@ -21,6 +19,7 @@
 ;; namemap type
 ;; immutable hash, maps variables to variables or labels to labels
 ;; defines constructor, contract, and label simplification
+; TODO: move namemap into types.rkt encapsulating hash-ref and hash-set
 (define namemap hash)
 (define namemap?
   (flat-named-contract
@@ -152,3 +151,10 @@
     (λ ()
       (begin0 (string->symbol (string-append p (number->string i)))
               (set! i (+ i 1))))))
+
+;; create a symbol creation function
+(define-with-contract (make-int-counter)
+  (-> (-> integer?))
+  (let ([i 0])
+    (λ ()
+      (begin0 i (set! i (+ i 1))))))
