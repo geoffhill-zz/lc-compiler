@@ -6,6 +6,7 @@
 ;;; Spring 2011
 
 (require (file "types.rkt"))
+(require (file "input.rkt"))
 (require (file "L2.rkt"))
 
 ;; parse assignment statements

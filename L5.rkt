@@ -4,9 +4,11 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "types.rkt"))
 (require (file "preds.rkt"))
 (require (file "utils.rkt"))
+(require (file "types.rkt"))
+(require (file "input.rkt"))
+(require (file "output.rkt"))
 
 ;;;
 ;;; L5 -> L4 COMPILATION

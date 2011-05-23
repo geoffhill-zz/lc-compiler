@@ -6,6 +6,8 @@
 
 (require (file "preds.rkt"))
 
+; TODO: move namemap into types.rkt encapsulating hash-ref and hash-set
+
 ; macro for function definitions
 ; enabling this value causes contracts to be enforced
 (define-syntax (define-with-contract stx)

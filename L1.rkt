@@ -4,15 +4,17 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "types.rkt"))
 (require (file "preds.rkt"))
 (require (file "utils.rkt"))
+(require (file "types.rkt"))
+(require (file "input.rkt"))
+(require (file "output.rkt"))
 
 ;;;
 ;;; L1 -> x86 COMPILATION
 ;;;
 
-(define gen-new-label (make-counter ':__tlbl))
+(define gen-new-label (make-counter ':l1_lbl_))
 
 (define-with-contract (compile-L1prog prog)
   (L1prog? . -> . string?)
@@ -20,14 +22,12 @@
     (type-case L1prog prog
       [l1prog (main others)
               (begin
-                ; (fprintf out ".file \"bootstrap.c\"~n")
                 (fprintf out ".text~n")
                 (fprintf out ".globl very_first_fn~n")
                 (fprintf out ".type very_first_fn, @function~n~n")
                 (compile-L1fn main out #t)
                 (map (λ (fn) (compile-L1fn fn out #f)) others)
                 (fprintf out "~n.size very_first_fn, .-very_first_fn~n")
-                ; (fprintf out ".ident \"GCC: (Ubuntu 4.3.2-1ubuntu12) 4.3.2\"~n")
                 (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
                 (get-output-string out))])))
 
