@@ -129,8 +129,8 @@
   (L4prog? . -> . any/c)
   (type-case L4prog prog
     [l4prog (main others)
-            (cons (format-L3fn main)
-                  (map format-L3fn others))]))
+            (cons (format-L4fn main)
+                  (map format-L4fn others))]))
 
 (define-with-contract (format-L4fn fn)
   (L4fn? . -> . any/c)
@@ -147,3 +147,35 @@
     [l4e-begin (fst snd) `(begin ,(format-L4expr fst) ,(format-L4expr snd))]
     [l4e-app (fn args) (map format-L4expr (cons fn args))]
     [l4e-v (v) v]))
+
+;;;
+;;; L5 -> S-EXPR
+;;;
+
+(define-with-contract (format-L5prog prog)
+  (L5prog? . -> . any/c)
+  (type-case L5prog prog
+    [l5prog (main others)
+            (cons (format-L5fn main)
+                  (map format-L5fn others))]))
+
+(define-with-contract (format-L5fn fn)
+  (L5fn? . -> . any/c)
+  (type-case L5fn fn
+    [l5mainfn (body) (format-L5expr body)]
+    [l5fn (lbl args body)
+          `(,lbl ,args ,(format-L5expr body))]))
+
+(define-with-contract (format-L5expr expr)
+  (L5expr? . -> . any/c)
+  (type-case L5expr expr
+    [l5e-lambda (args body) `(lambda ,args ,(format-L5expr body))]
+    [l5e-let (id binding body) `(let ([,id ,(format-L5expr binding)]) ,(format-L5expr body))]
+    [l5e-letrec (id binding body) `(letrec ([,id ,(format-L5expr binding)]) ,(format-L5expr body))]
+    [l5e-if (test then else) `(if ,(format-L5expr test) ,(format-L5expr then) ,(format-L5expr else))]
+    [l5e-newtuple (args) `(new-tuple ,(map format-L5expr args))]
+    [l5e-begin (fst snd) `(begin ,(format-L5expr fst) ,(format-L5expr snd))]
+    [l5e-app (fn args) (map format-L5expr (cons fn args))]
+    [l5e-prim (prim) prim]
+    [l5e-var (var) var]
+    [l5e-num (num) num]))

@@ -111,6 +111,17 @@
    'L4-keyword?
    (symbols 'let 'if 'begin)))
 
+(define L4-builtin?
+  (flat-named-contract
+   'L4-builtin?
+   (symbols
+    '+ '- '* '< '<= '=
+    'number? 'a?
+    'new-array 'new-tuple
+    'aref 'aset 'alen
+    'print 'make-closure
+    'closure-proc 'closure-vars)))
+
 (define L4-x?
   (flat-named-contract
    'L4-x?
@@ -123,13 +134,26 @@
    'L4-v?
    (or/c num? label? L4-x?)))
 
-(define L4-builtin?
+(define L5-keyword?
   (flat-named-contract
-   'L4-builtin?
+   'L5-keyword?
+   (symbols
+    'lambda 'let 'letrec
+    'if 'new-tuple 'begin)))
+
+(define L5-builtin?
+  (flat-named-contract
+   'L5-builtin?
    (symbols
     '+ '- '* '< '<= '=
     'number? 'a?
-    'new-array 'new-tuple
-    'aref 'aset 'alen
-    'print 'make-closure
-    'closure-proc 'closure-vars)))
+    'print 'new-array
+    'aref 'aset 'alen)))
+
+(define L5-var?
+  (flat-named-contract
+   'L5-var?
+   (and/c symbol?
+          (not/c label?)
+          (not/c L5-keyword?)
+          (not/c L5-builtin?))))

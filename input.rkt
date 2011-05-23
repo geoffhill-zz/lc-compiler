@@ -150,3 +150,38 @@
     [`(,fn ,args ...) (l4e-app (build-L4expr fn) (map build-L4expr args))]
     [(? L4-v?) (l4e-v src)]
     [_ (error 'L4 "not a well-formed expression")]))
+
+;;;
+;;; S-EXPR -> L5
+;;;
+
+(define-with-contract (build-L5prog src)
+  (list? . -> . L5prog?)
+  (l4prog (build-l5mainfn (car src))
+          (map build-l5fn (cdr src))))
+
+(define-with-contract (build-l5mainfn src)
+  (any/c . -> . l5mainfn?)
+  (l4mainfn (build-L5expr src)))
+
+(define-with-contract (build-l5fn src)
+  (any/c . -> . l5fn?)
+  (match src
+    [`(,(? label? lbl) (,(? L5-var? args) ...) ,e)
+     (l5fn lbl args (build-L5expr e))]
+    [_ (error 'L5 "not a well-formed function")]))
+
+(define-with-contract (build-L5expr src)
+  (any/c . -> . L5expr?)
+  (match src
+    [`(lambda (,args ...) ,e) (l5e-lambda args (build-L5expr e))]
+    [`(let ([,(? L5-var? id) ,e1]) ,e2) (l5e-let id (build-L5expr e1) (build-L5expr e2))]
+    [`(letrec ([,(? L5-var? id) ,e1]) ,e2) (l5e-let id (build-L5expr e1) (build-L5expr e2))]
+    [`(if ,e1 ,e2 ,e3) (l5e-if (build-L5expr e1) (build-L5expr e2) (build-L5expr e3))]
+    [`(new-tuple ,args ...) (l5e-newtuple (map build-L5expr args))]
+    [`(begin ,e1 ,e2) (l5e-begin (build-L5expr e1) (build-L5expr e2))]
+    [`(,fn ,args ...) (l5e-app (build-L5expr fn) (map build-L5expr args))]
+    [(? L5-builtin? prim) (l5e-prim prim)]
+    [(? L5-var? var) (l5e-var var)]
+    [(? num? num) (l5e-num num)]
+    [_ (error 'L5 "not a well-formed expression")]))

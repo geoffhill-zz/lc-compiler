@@ -111,11 +111,11 @@
 (define-type L4fn
   [l4mainfn (body L4expr?)]
   [l4fn (lbl label?)
-        (args (listof L4-v?))
+        (args (listof L4-x?))
         (body L4expr?)])
 
 (define-type L4expr
-  [l4e-let (id L4-v?)
+  [l4e-let (id L4-x?)
            (binding L4expr?)
            (body L4expr?)]
   [l4e-if (test L4expr?)
@@ -126,3 +126,38 @@
   [l4e-app (fn L4expr?)
            (args (listof L4expr?))]
   [l4e-v (v L4-v?)])
+
+;;;
+;;; L5 PLAI TYPES
+;;;
+
+(define-type L5prog
+  [l5prog (main l5mainfn?)
+          (others (listof l5fn?))])
+
+(define-type L5fn
+  [l5mainfn (body L5expr?)]
+  [l5fn (lbl label?)
+        (args (listof L5-var?))
+        (body L5expr?)])
+
+(define-type L5expr
+  [l5e-lambda (args (listof L5-var?))
+              (body L5expr?)]
+  [l5e-let (id L5-var?)
+           (binding L5expr?)
+           (body L5expr?)]
+  [l5e-letrec (id L5-var?)
+              (binding L5expr?)
+              (body L5expr?)]
+  [l5e-if (test L5expr?)
+          (then L5expr?)
+          (else L5expr?)]
+  [l5e-newtuple (args (listof L5expr?))]
+  [l5e-begin (fst L5expr?)
+             (snd L5expr?)]
+  [l5e-app (fn L5expr?)
+           (args (listof L5expr?))]
+  [l5e-prim (prim L5-builtin?)]
+  [l5e-var (var L5-var?)]
+  [l5e-num (num num?)])
