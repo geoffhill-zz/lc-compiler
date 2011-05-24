@@ -23,6 +23,102 @@
 ;; (2) using cljmap, lambdas and apps all replaced
 
 ; TODO: eliminate letrecs
+; TODO: fix discrepancy between lambdas and builtins
+
+(define-with-contract (elim-letrec expr)
+  (L5expr? . -> . L5expr?)
+  (elim-letrec-traverse expr (make-counter 'recvar_)))
+
+(define-with-contract (elim-letrec-traverse expr varfn)
+  (L5expr? (-> symbol?) . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (l5e-lambda args (elim-letrec-traverse body varfn))]
+    [l5e-let (id binding body)
+             (l5e-let id
+                      (elim-letrec-traverse binding varfn)
+                      (elim-letrec-traverse body varfn))]
+    [l5e-letrec (id binding body)
+                (let* ([newid (varfn)]
+                       [new-binding (elim-letrec-traverse binding varfn)]
+                       [new-body (elim-letrec-traverse body varfn)]
+                       [bound-binding (bind-var new-binding id newid)]
+                       [bound-body (bind-var new-body id newid)])
+                  (l5e-let
+                   newid
+                   (l5e-newtuple `(,(l5e-num 0)))
+                   (l5e-begin (l5e-app (l5e-prim 'aset)
+                                       `(,(l5e-var newid)
+                                         ,(l5e-num 0)
+                                         ,bound-binding))
+                              bound-body)))]
+    [l5e-if (test then else)
+            (l5e-if (elim-letrec-traverse test varfn)
+                    (elim-letrec-traverse then varfn)
+                    (elim-letrec-traverse else varfn))]
+    [l5e-newtuple (args)
+                  (l5e-newtuple
+                   (map (λ (arg) (elim-letrec-traverse arg varfn))
+                        args))]
+    [l5e-begin (fst snd)
+               (l5e-begin
+                (elim-letrec-traverse fst varfn)
+                (elim-letrec-traverse snd varfn))]
+    [l5e-app (fn args)
+             (l5e-app
+              (elim-letrec-traverse fn varfn)
+              (map (λ (arg) (elim-letrec-traverse arg varfn))
+                   args))]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) expr]
+    [l5e-num (num) expr]))
+
+; replaces variables with array references
+; preserves scope with lambda, let and letrec
+(define-with-contract (bind-var expr oldvar arr)
+  (L5expr? L5-var? L5-var? . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (l5e-lambda args
+                            (if (member? oldvar args)
+                                body
+                                (bind-var body oldvar arr)))]
+    [l5e-let (id binding body)
+             (l5e-let id
+                      (bind-var binding oldvar arr)
+                      (if (equal? oldvar id)
+                          body
+                          (bind-var body oldvar arr)))]
+    [l5e-letrec (id binding body)
+                (l5e-letrec id
+                      (bind-var binding oldvar arr)
+                      (if (equal? oldvar id)
+                          body
+                          (bind-var body oldvar arr)))]
+    [l5e-if (test then else)
+            (l5e-if (bind-var test oldvar arr)
+                    (bind-var then oldvar arr)
+                    (bind-var else oldvar arr))]
+    [l5e-newtuple (args)
+                  (l5e-newtuple
+                   (map (λ (arg) (bind-var arg oldvar arr))
+                        args))]
+    [l5e-begin (fst snd)
+               (l5e-begin
+                (bind-var fst oldvar arr)
+                (bind-var snd oldvar arr))]
+    [l5e-app (fn args)
+             (l5e-app
+              (bind-var fn oldvar arr)
+              (map (λ (arg) (bind-var arg oldvar arr))
+                   args))]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) (if (equal? oldvar var)
+                       (l5e-app (l5e-prim 'aref)
+                                `(,(l5e-var arr)
+                                  ,(l5e-num 0)))
+                       expr)]
+    [l5e-num (num) expr]))
 
 (define-type LiftedClj
   [lft-clj (lbl label?)
@@ -202,37 +298,37 @@
                               (lambda-lift-traverse binding cljs counter)
                               (lambda-lift-traverse body cljs counter)))]
     [l5e-if (test then else)
-                (begin
-                  (counter)
-                  (l5e-if (lambda-lift-traverse test cljs counter)
-                          (lambda-lift-traverse then cljs counter)
-                          (lambda-lift-traverse else cljs counter)))]
+            (begin
+              (counter)
+              (l5e-if (lambda-lift-traverse test cljs counter)
+                      (lambda-lift-traverse then cljs counter)
+                      (lambda-lift-traverse else cljs counter)))]
     [l5e-newtuple (args)
-                (begin
-                  (counter)
-                  (l5e-newtuple
-                   (map (λ (arg) (lambda-lift-traverse arg cljs counter))
-                        args)))]
+                  (begin
+                    (counter)
+                    (l5e-newtuple
+                     (map (λ (arg) (lambda-lift-traverse arg cljs counter))
+                          args)))]
     [l5e-begin (fst snd)
-                (begin
-                  (counter)
-                  (l5e-begin
-                       (lambda-lift-traverse fst cljs counter)
-                       (lambda-lift-traverse snd cljs counter)))]
+               (begin
+                 (counter)
+                 (l5e-begin
+                  (lambda-lift-traverse fst cljs counter)
+                  (lambda-lift-traverse snd cljs counter)))]
     [l5e-app (fn args)
-                (let ([pos (counter)]
-                      [traversed-fn (lambda-lift-traverse fn cljs counter)]
-                      [traversed-args
-                       (map (λ (arg) (lambda-lift-traverse arg cljs counter))
-                            args)])
-                  (if (l5e-prim? traversed-fn)
-                      (l5e-app traversed-fn traversed-args)
-                      (l5e-app (l5e-app (l5e-var 'closure-proc)
-                                        `(,traversed-fn))
-                               (cons
-                                (l5e-app (l5e-var 'closure-vars)
-                                         `(,traversed-fn))
-                                traversed-args))))]
+             (let ([pos (counter)]
+                   [traversed-fn (lambda-lift-traverse fn cljs counter)]
+                   [traversed-args
+                    (map (λ (arg) (lambda-lift-traverse arg cljs counter))
+                         args)])
+               (if (l5e-prim? traversed-fn)
+                   (l5e-app traversed-fn traversed-args)
+                   (l5e-app (l5e-app (l5e-var 'closure-proc)
+                                     `(,traversed-fn))
+                            (cons
+                             (l5e-app (l5e-var 'closure-vars)
+                                      `(,traversed-fn))
+                             traversed-args))))]
     [l5e-prim (prim) (begin (counter) expr)]
     [l5e-var (var) (begin (counter) expr)]
     [l5e-num (num) (begin (counter) expr)]))

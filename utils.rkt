@@ -52,6 +52,13 @@
      (and ((setof inside-pred?) x)
           (= (set-count x) 2)))))
 
+; given a list and an element, return boolean whether elem is in list
+(define-with-contract (member? elem lst)
+  (any/c list? . -> . boolean?)
+  (and (not (empty? lst))
+       (or (equal? elem (first lst))
+           (member? elem (rest lst)))))
+
 ; given a set, return list with all elems
 (define-with-contract (set->list s)
   (set? . -> . list?)

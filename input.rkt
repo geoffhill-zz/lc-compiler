@@ -160,7 +160,7 @@
   (match src
     [`(lambda (,args ...) ,e) (l5e-lambda args (build-L5expr e))]
     [`(let ([,(? L5-var? id) ,e1]) ,e2) (l5e-let id (build-L5expr e1) (build-L5expr e2))]
-    [`(letrec ([,(? L5-var? id) ,e1]) ,e2) (l5e-let id (build-L5expr e1) (build-L5expr e2))]
+    [`(letrec ([,(? L5-var? id) ,e1]) ,e2) (l5e-letrec id (build-L5expr e1) (build-L5expr e2))]
     [`(if ,e1 ,e2 ,e3) (l5e-if (build-L5expr e1) (build-L5expr e2) (build-L5expr e3))]
     [`(new-tuple ,args ...) (l5e-newtuple (map build-L5expr args))]
     [`(begin ,e1 ,e2) (l5e-begin (build-L5expr e1) (build-L5expr e2))]

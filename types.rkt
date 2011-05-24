@@ -108,11 +108,21 @@
   [l4prog (main l4mainfn?)
           (others (listof l4fn?))])
 
+#|
+(type-case L4prog prog
+  [l4prog (main others) '...])
+|#
+
 (define-type L4fn
   [l4mainfn (body L4expr?)]
   [l4fn (lbl label?)
         (args (listof L4-x?))
         (body L4expr?)])
+#|
+(type-case L4fn fn
+  [l4mainfn (body) '...]
+  [l4fn (lbl args body) '...])
+|#
 
 (define-type L4expr
   [l4e-let (id L4-x?)
@@ -126,6 +136,15 @@
   [l4e-app (fn L4expr?)
            (args (listof L4expr?))]
   [l4e-v (v L4-v?)])
+
+#|
+(type-case L4expr expr
+  [l4e-let (id binding body) '...]
+  [l4e-if (test then else) '...]
+  [l4e-begin (fst snd) '...]
+  [l4e-app (fn args) '...]
+  [l4e-v (v) '...])
+|#
 
 ;;;
 ;;; L5 PLAI TYPES
@@ -152,7 +171,6 @@
   [l5e-var (var L5-var?)]
   [l5e-num (num num?)])
 
-; type-case template
 #|
 (type-case L5expr expr
   [l5e-lambda (args body) '...]

@@ -12,6 +12,13 @@
 (test (namemap-lbls-only (namemap ':a ':b ':c ':d 'a 'b 'c 'd ':y ':z))
       (namemap ':a ':b ':c ':d ':y ':z))
 
+(test (member? 1 '()) #f)
+(test (member? 1 '(1 2 3)) #t)
+(test (member? 1 '(2 3)) #f)
+(test (member? 1 '(a b c)) #f)
+(test (member? 'a '(1 2 3 a b c)) #t)
+(test (member? 'a '(1 2 3 b c)) #f)
+
 (test (alphabetize '()) '())
 (test (alphabetize '(t)) '(t))
 (test (alphabetize '(z y x)) '(x y z))

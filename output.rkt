@@ -159,7 +159,7 @@
     [l5e-let (id binding body) `(let ([,id ,(format-L5expr binding)]) ,(format-L5expr body))]
     [l5e-letrec (id binding body) `(letrec ([,id ,(format-L5expr binding)]) ,(format-L5expr body))]
     [l5e-if (test then else) `(if ,(format-L5expr test) ,(format-L5expr then) ,(format-L5expr else))]
-    [l5e-newtuple (args) `(new-tuple ,(map format-L5expr args))]
+    [l5e-newtuple (args) (cons 'new-tuple (map format-L5expr args))]
     [l5e-begin (fst snd) `(begin ,(format-L5expr fst) ,(format-L5expr snd))]
     [l5e-app (fn args) (map format-L5expr (cons fn args))]
     [l5e-prim (prim) prim]
