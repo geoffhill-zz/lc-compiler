@@ -28,7 +28,7 @@
                        (begin
                          (aset recvar_0 0 (lambda () ((aref recvar_0 0))))
                          (let ([recvar_1 (new-tuple 0)])
-                           (begin (aset recvar_1 0 (lambda () (+ ((aref recvar_0)) ((aref recvar_1)))))
+                           (begin (aset recvar_1 0 (lambda () (+ ((aref recvar_0 0)) ((aref recvar_1 0)))))
                                   ((aref recvar_1 0))))))))
 
 (test (free-vars (build-L5expr 5))

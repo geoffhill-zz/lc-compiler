@@ -10,20 +10,54 @@
 (require (file "input.rkt"))
 (require (file "output.rkt"))
 
-;;;
-;;; L5 -> L4 COMPILATION
-;;;
-
-;; program runs through this transformation:
-;;
-;; (1) cljmap built up:
-;;    keys are every lambda in the function
-;;    duplicate lambdas get duplicate closures TODO: this is bad
-;;    vals are the corresponding LiftedCljs
-;; (2) using cljmap, lambdas and apps all replaced
-
-; TODO: eliminate letrecs
 ; TODO: fix discrepancy between lambdas and builtins
+; TODO: fix 3-argument limit
+
+;;;
+;;; LIFTED CLOSURE AND CLOSURE MAP TYPES
+;;;
+
+(define-type LiftedClj
+  [lft-clj (lbl label?)
+           (args (listof L5-var?))
+           (frees (listof L5-var?))
+           (body L5expr?)])
+(define cljmap hash)
+(define cljmap?
+  (flat-named-contract
+   'cljmap?
+   (hash/c integer? LiftedClj? #:immutable #t #:flat? #t)))
+
+(define-with-contract (cljmap-get m i)
+  (cljmap? integer? . -> . LiftedClj?)
+  (or
+   (hash-ref m i #f)
+   (error 'cljmap "key doesn't exist")))
+
+(define cljmap-getall hash-values)
+
+(define-with-contract (cljmap-extend m i clj)
+  (cljmap? integer? LiftedClj? . -> . cljmap?)
+  (when (hash-ref m i #f)
+    (error 'cljmap "key already exists"))
+  (hash-set m i clj))
+
+(define-with-contract (cljmap-lstunion lst)
+  ((listof cljmap?) . -> . cljmap?)
+  (foldl (λ (lhs rhs)
+           (let loop ([newhash lhs]
+                      [lstform (hash->list rhs)])
+             (if (empty? lstform)
+                 newhash
+                 (let ([k (car (first lstform))]
+                       [v (cdr (first lstform))])
+                   (loop (cljmap-extend newhash k v) (rest lstform))))))
+         (cljmap)
+         lst))
+
+;;;
+;;; LETREC ELIMINATION
+;;;
 
 (define-with-contract (elim-letrec expr)
   (L5expr? . -> . L5expr?)
@@ -120,80 +154,9 @@
                        expr)]
     [l5e-num (num) expr]))
 
-(define-type LiftedClj
-  [lft-clj (lbl label?)
-           (args (listof L5-var?))
-           (frees (listof L5-var?))
-           (body L5expr?)])
-(define cljmap hash)
-(define cljmap?
-  (flat-named-contract
-   'cljmap?
-   (hash/c integer? LiftedClj? #:immutable #t #:flat? #t)))
-
-(define-with-contract (cljmap-get m i)
-  (cljmap? integer? . -> . LiftedClj?)
-  (or
-   (hash-ref m i #f)
-   (error 'cljmap "key doesn't exist")))
-
-(define cljmap-getall hash-values)
-
-(define-with-contract (cljmap-extend m i clj)
-  (cljmap? integer? LiftedClj? . -> . cljmap?)
-  (when (hash-ref m i #f)
-    (error 'cljmap "key already exists"))
-  (hash-set m i clj))
-
-(define-with-contract (cljmap-lstunion lst)
-  ((listof cljmap?) . -> . cljmap?)
-  (foldl (λ (lhs rhs)
-           (let loop ([newhash lhs]
-                      [lstform (hash->list rhs)])
-             (if (empty? lstform)
-                 newhash
-                 (let ([k (car (first lstform))]
-                       [v (cdr (first lstform))])
-                   (loop (cljmap-extend newhash k v) (rest lstform))))))
-         (cljmap)
-         lst))
-
-(define-with-contract (compile-L5expr expr)
-  (L5expr? . -> . L4prog?)
-  (let* ([cljs (make-closures expr)]
-         [others (cljmap-getall cljs)])
-    (l4prog (l4mainfn (convert-L5expr (lambda-lift expr cljs)))
-            (map (λ (clj)
-                   (type-case LiftedClj clj
-                     [lft-clj (lbl args frees body)
-                              (l4fn lbl args (convert-L5expr (lambda-lift body cljs)))]))
-                 others))))
-
-(define-with-contract (convert-L5expr expr)
-  (L5expr? . -> . L4expr?)
-  (type-case L5expr expr
-    [l5e-lambda (args body)
-                (error 'L5 "should not see lambda after lambda-lifting")]
-    [l5e-let (id binding body)
-             (l4e-let id (convert-L5expr binding) (convert-L5expr body))]
-    [l5e-letrec (id binding body)
-                (error 'L5 "should not see letrec after lambda-lifting")]
-    [l5e-if (test then else)
-            (l4e-if (convert-L5expr test)
-                    (convert-L5expr then)
-                    (convert-L5expr else))]
-    [l5e-newtuple (args)
-                  (l4e-app (l4e-v 'new-tuple)
-                           (map convert-L5expr args))]
-    [l5e-begin (fst snd)
-               (l4e-begin (convert-L5expr fst)
-                          (convert-L5expr snd))]
-    [l5e-app (fn args)
-             (l4e-app (convert-L5expr fn)
-                      (map convert-L5expr args))]
-    [l5e-prim (prim) (l4e-v prim)]
-    [l5e-var (var) (l4e-v var)]
-    [l5e-num (num) (l4e-v num)]))
+;;;
+;;; CLOSURE GENERATION
+;;;
 
 (define-with-contract (make-closures expr)
   (L5expr? . -> . cljmap?)
@@ -270,6 +233,10 @@
     [l5e-var (var) (begin (counter) (cljmap))]
     [l5e-num (num) (begin (counter) (cljmap))]))
 
+;;;
+;;; LAMBDA LIFTING
+;;;
+
 (define-with-contract (lambda-lift expr cljs)
   (L5expr? cljmap? . -> . L5expr?)
   (lambda-lift-traverse expr cljs (make-int-counter)))
@@ -333,6 +300,10 @@
     [l5e-var (var) (begin (counter) expr)]
     [l5e-num (num) (begin (counter) expr)]))
 
+;;;
+;;; FREE VARIABLE SEARCHING
+;;;
+
 (define-with-contract (free-vars expr)
   (L5expr? . -> . (setof L5-var?))
   (free-vars-traverse expr (set)))
@@ -368,6 +339,58 @@
                  (set)
                  (set var))]
     [l5e-num (num) (set)]))
+
+;;;
+;;; L5 -> L4 COMPILATION
+;;;
+
+;; program runs through this transformation:
+;;
+;; (1) letrecs eliminated
+;; (2) primitive closing
+;; (3) cljmap built up:
+;;    keys are every lambda in the function
+;;    duplicate lambdas get duplicate closures TODO: this is bad
+;;    vals are the corresponding LiftedCljs
+;; (4) using cljmap, lambdas and apps all replaced
+
+(define-with-contract (compile-L5expr expr)
+  (L5expr? . -> . L4prog?)
+  (let* ([expr-flat (elim-letrec expr)]
+         [cljs (make-closures expr)]
+         [others (cljmap-getall cljs)])
+    (l4prog (l4mainfn (convert-L5expr (lambda-lift expr cljs)))
+            (map (λ (clj)
+                   (type-case LiftedClj clj
+                     [lft-clj (lbl args frees body)
+                              (l4fn lbl args (convert-L5expr (lambda-lift body cljs)))]))
+                 others))))
+
+(define-with-contract (convert-L5expr expr)
+  (L5expr? . -> . L4expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (error 'L5 "should not see lambda after lambda-lifting")]
+    [l5e-let (id binding body)
+             (l4e-let id (convert-L5expr binding) (convert-L5expr body))]
+    [l5e-letrec (id binding body)
+                (error 'L5 "should not see letrec after lambda-lifting")]
+    [l5e-if (test then else)
+            (l4e-if (convert-L5expr test)
+                    (convert-L5expr then)
+                    (convert-L5expr else))]
+    [l5e-newtuple (args)
+                  (l4e-app (l4e-v 'new-tuple)
+                           (map convert-L5expr args))]
+    [l5e-begin (fst snd)
+               (l4e-begin (convert-L5expr fst)
+                          (convert-L5expr snd))]
+    [l5e-app (fn args)
+             (l4e-app (convert-L5expr fn)
+                      (map convert-L5expr args))]
+    [l5e-prim (prim) (l4e-v prim)]
+    [l5e-var (var) (l4e-v var)]
+    [l5e-num (num) (l4e-v num)]))
 
 ;;;
 ;;; EXTERNAL INTERFACE
