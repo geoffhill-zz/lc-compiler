@@ -1,0 +1,97 @@
+Some optimizations to consider.
+
+Better letrec compilation.
+
+In a tight loop, the overhead of the unboxing & closure unpacking that
+letrec and lambda introduce can be significant. But, you can avoid
+them if you see a letrec-bound function with no free variables
+(besides itself). Specifically, you can turn it directly into an L4
+function. To make this work, you introduce a label version of the
+function name (replacing uses in the body) and just put the function
+as a new top-level L4 function. Your code must also then treat the
+label as if it was a primitive, i.e., a call-site with a label in the
+function position does not change and a label in some other place in
+the program has to get wrapped in a lambda.
+
+For example:
+
+(letrec ([fib (lambda (n)
+                (if (< n 2)
+                    1
+                    (+ (fib (- n 1))
+                       (fib (- n 2)))))])
+  (fib 30))
+
+=>
+
+((:fib 30)
+ (:fib (n)
+       (if (< n 2)
+           1
+           (+ (:fib (- n 1))
+              (:fib (- n 2))))))
+
+Also a little trickier, but possibly also profitable is if you identify functions where:
+
+  1) the number or arguments plus the number of free variables is less than 3
+  2) all of the call sites of the function have all of the closure variables in scope
+     (in general, only the site where the lambda expression is has those variables in scope)
+
+then you can transform them so they get their closure variables via regular arguments which
+then makes them suitable for the above transformation. One example would be a function like this:
+
+(let ([a (new-array 100 0)])
+  (letrec ([init-array 
+            (lambda (i)
+             (if (< i (alen a))
+                 (begin 
+                  (aset a i i)
+                  (init-array (+ i 1)))
+                 0))])
+    (init-array 0)))
+
+Inlining.
+
+Some functions are doing relatively simple things, to the point that
+the code that deals with the calling and returning can dominate in
+your compiled code. Fib is one such program; if you look at the L1
+output of a compiled fib program (starting from the L4 program above,
+say), you'll find that lots of the code is dealing with function calls
+and returns.
+
+To get a better ratio, you can do function inlining. Specifically, if you see:
+
+  (f e ...)
+
+in your program and you know that "f" is only ever bound to one
+specific function, you can replace the call-site with a let to bind
+the arguments, followed by the body of the function. Specifically, if
+'f' is bound to (lambda (x ...) e_body), then you can replace the call
+above with
+
+  (let ([x e] ...)
+    e_body)
+
+For fib, doing inlining twice (once for each recursive call), yields
+this:
+
+(letrec ([fib (lambda (n)
+                (if (< n 2)
+                    1
+                    (+ (let ([n (- n 1)])
+                         (if (< n 2)
+                             1
+                             (+ (fib (- n 1))
+                                (fib (- n 2)))))
+                       (let ([n (- n 2)])
+                         (if (< n 2)
+                             1
+                             (+ (fib (- n 1))
+                                (fib (- n 2))))))))])
+  (fib 30))
+
+The two dangers here are that you should be careful to terminate and
+that your register allocator will get a real workout if you do too
+much inlining (the register allocation is the only part of the
+compiler that isn't linear and inlining can slow it down
+substantially).

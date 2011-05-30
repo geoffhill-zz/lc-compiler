@@ -1,0 +1,159 @@
+Closure conversion.
+
+Here's the full L5 language:
+
+e ::= (lambda (x ...) e)
+    | x
+    | (let ([x e]) e)
+    | (letrec ([x e]) e)
+    | (if e e e)
+    | (new-tuple e ...)
+    | (begin e e)
+    | (e e ...) ;; application expression
+    | prim
+    | num
+  
+prim ::= biop 
+       | pred 
+       | print
+       | new-array
+       | aref
+       | aset
+       | alen
+
+biop ::= + | - | * | < | <= | =
+pred ::= number? | a?
+
+Goal: to turn a program in L5 into an L4 program.
+
+The key difference is that functions in L4 are all at the top (also we
+have to eliminate letrec expressions; see the end of the notes for
+that). So we need to find a way to lift out all functions. The only
+thing stopping us from doing that is the free variables in the body of
+the function.
+
+So, the way we do this is to create closures, via a program
+transformation. Namely, we create a pair that holds a label with the
+values of the free variables to stand for the lambda expression,
+and we pass that around at runtime. Then, when we call the function,
+we supply the extra variables (in the tuple) as an extra argument.
+
+For example, consider the inner procedure here:
+
+  (let ([x 1])
+    (let ([f (lambda (y) (+ x y))])
+      (f 1)))
+    
+There are two free variables in the body, x and y. Since y is the
+argument, we don't need to worry about it.  That leaves x and means
+that that procedure needs turn into this closure record:
+
+  (make-closure :f (new-tuple x))
+
+where we have this :f defined at the top level:
+
+  (:f (vars y) (+ (area vars 0) y))
+
+and then the call site has to change too:
+
+  ((closure-proc f) (closure-vars f) 1)
+
+meaning we get this L4 program:
+
+ ((let ([x 1])
+    (let ([f (make-closure :f (new-tuple x))])
+      ((closure-proc f) (closure-vars f) 1)))
+  (:f (vars y) (+ (area vars 0) y)))
+
+This example makes a few shortcuts, reusing the existing variable name
+f and substituting (aref vars 0) into the body. To make this
+transformation general purpose, however, we can in general introduce
+lets.
+
+Specifically, if we see 
+
+  (lambda (x ...) e)
+
+in the program, we replace it with
+
+  (make-closure :f (new-tuple y1 y2 ... y-n))
+
+where (y1 y2 ... y-n) are the free variables in (lambda (x ...) e),
+and we create a new procedure:
+
+  (:f (vars-tup x ...) 
+      (let ([y1 (aref vars-tup 0)])
+        (let ([y2 (aref vars-tup 1)])
+          ...
+          (let ([y-n (aref vars-tup n)])
+            e))))
+
+Note that vars-tup does not need to be a fresh variable, but :f needs
+to be a fresh label (this is relatively easy, however, since there are
+no labels in L5 programs).
+
+If we see an application expression:
+
+  (e0 e1 ... en)
+
+then we replace it with this:
+
+  (let ([f e0])
+    ((closure-proc f) (closure-vars f) e1 ... en))
+
+Note that the 'f' needs to be a fresh variable here, since it must not
+shadow any variables that are free in e1 ... en.
+
+There are a three issues to clean up here, tho:
+
+ - L4 has an argument limit of 3 and L5 has no argument limit. One way
+   to deal with this is to package up all of the arguments into a
+   second tuple and thus make every function that the compiler
+   generates take two arguments and the body then begins with two sets
+   of 'let' expressions, one that unpacks the arguments and one that
+   unpacks the closure variables.
+
+   But this causes problems because we do not have a garbage
+   collector, so any call to a recursive function is going allocate
+   (and thus probably run out of memory). So, instead, you need to
+   have a special case: if there are 2 or fewer arguments, pass them
+   directly as arguments. If there are 3 or more, create a tuple.
+
+   But watch out: the interpreters use GC so you won't see such bugs
+   with tests that allocate too much (so this means you may only fail
+   in the speed test....)
+
+ - when a primitive operation shows up in the function position of an
+   application, we need to just leave it there. But when it shows up
+   in some other place, we just turn it into lambda expression and
+   then closure convert it. For example:
+
+    (+ x y)  => (+ x y)
+
+    (f +) => (f (lambda (x y) (+ x y)))
+
+   That way, all primitives show up in the function position of an
+   application and we already know how to deal with that newly created
+   lambda.
+
+
+   [ Note that although new-tuple is really a function, we treat it
+     specially and do not allow you to pass it around, because L5 does
+     not have n-ary functions. That is, each function has only one
+     fixed arity, but new-tuple's can accept any number of arguments
+     so if someone passes around new-tuple then we cannot closure
+     convert that program. ]
+
+ - letrec expressions. They need to turn into 'let's, like this:
+
+    (letrec ([x e1]) e2)
+    =>
+    (let ([x (new-tuple 0)])
+      (begin (aset x 0 e1[x:=(aref x 0)])
+             e2[x:=(aref x 0)]))
+
+   where the expression e[x:=(aref x 0)] means to replace
+   all *free* occurrences of 'x' in e with the expression
+   (aref x 0).
+
+   (The equation above is an L5 to L5 transformation.)
