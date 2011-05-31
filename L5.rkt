@@ -187,7 +187,7 @@
          [varfn (make-counter 'arg)]
          [args (for/list ([i (in-range (bif-arity bif))]) (varfn))]
          [body (l5e-app (l5e-prim bif) (map l5e-var args))])
-    (lft-clj lbl '() args body)))
+    (lft-clj lbl args '() body)))
 
 (define-with-contract (make-closures expr)
   (L5expr? . -> . cljmap?)
