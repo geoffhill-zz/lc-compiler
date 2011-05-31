@@ -22,6 +22,12 @@
    'n4?
    (λ (x) (and (integer? x) (zero? (modulo x 4))))))
 
+(define reg?
+  (flat-named-contract
+   'reg?
+   (symbols 'eax 'ebx 'ecx 'edx
+            'esi 'edi 'ebp 'esp)))
+
 (define aop?
   (flat-named-contract
    'aop?
@@ -50,8 +56,7 @@
 (define L1-x?
   (flat-named-contract
    'L1-x?
-   (symbols 'eax 'ebx 'ecx 'edx
-            'esi 'edi 'ebp 'esp)))
+   reg?))
 
 (define L1-s?
   (flat-named-contract
