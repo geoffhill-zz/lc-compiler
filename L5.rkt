@@ -158,6 +158,37 @@
 ;;; CLOSURE GENERATION
 ;;;
 
+(define env-tup 'vars_tup)
+(define-with-contract (bif-lbl bif)
+  (L5-builtin? . -> . label?)
+  (case bif
+    [(+) ':l5bif_plus]
+    [(-) ':l5bif_minus]
+    [(*) ':l5bif_times]
+    [(<) ':l5bif_less]
+    [(<=) ':l5bif_leq]
+    [(=) ':l5bif_eq]
+    [(number?) ':l5bif_number]
+    [(a?) ':l5bif_a]
+    [(print) ':l5bif_print]
+    [(new-array) ':l5bif_newarray]
+    [(aref) ':l5bif_aref]
+    [(aset) ':l5bif_aset]
+    [(alen) ':l5bif_alen]))
+(define-with-contract (bif-arity bif)
+  (L5-builtin? . -> . integer?)
+  (case bif
+    [(number? a? print alen) 1]
+    [(+ - * < <= = new-array aref) 2]
+    [(aset) 3]))
+(define-with-contract (bif-clj bif)
+  (L5-builtin? . -> . LiftedClj?)
+  (let* ([lbl (bif-lbl bif)]
+         [varfn (make-counter 'arg)]
+         [args (for/list ([i (in-range (bif-arity bif))]) (varfn))]
+         [body (l5e-app (l5e-prim bif) (map l5e-var args))])
+    (lft-clj lbl '() args body)))
+
 (define-with-contract (make-closures expr)
   (L5expr? . -> . cljmap?)
   (let ([counter (make-int-counter)]
@@ -180,7 +211,7 @@
                                       (loop (l5e-let
                                              (first vs)
                                              (l5e-app (l5e-prim 'aref)
-                                                      `(,(l5e-var 'vars-tup)
+                                                      `(,(l5e-var env-tup)
                                                         ,(l5e-num i)))
                                              newbody)
                                             (rest vs)
@@ -189,7 +220,7 @@
                    (make-closures-traverse body counter lblfn)
                    pos
                    (lft-clj lbl
-                            (cons 'vars-tup args)
+                            (cons env-tup args)
                             freeslst
                             newbody)))]
     [l5e-let (id binding body)
@@ -227,9 +258,11 @@
              (begin
                (counter)
                (cljmap-lstunion
-                (map (λ (arg) (make-closures-traverse arg counter lblfn))
-                     (cons fn args))))]
-    [l5e-prim (prim) (begin (counter) (cljmap))]
+                (cons (if (l5e-prim? fn)
+                          (cljmap) ;; primitives in fn position don't need closures
+                          (make-closures-traverse fn counter lblfn))
+                      (map (λ (arg) (make-closures-traverse arg counter lblfn)) args))))]
+    [l5e-prim (prim) (cljmap (counter) (bif-clj prim))]
     [l5e-var (var) (begin (counter) (cljmap))]
     [l5e-num (num) (begin (counter) (cljmap))]))
 
