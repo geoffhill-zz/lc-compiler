@@ -88,30 +88,15 @@
 (test (free-vars (build-L5expr '(let ([g (+ a b)]) (begin g h))))
       (set 'a 'b 'h))
 
-(test (make-closures (build-L5expr '5))
-      (cljmap))
-(test (make-closures (build-L5expr '(+ 5 6)))
-      (cljmap))
-(test (make-closures (build-L5expr '(+ 5 (- (let ([x 2]) x) 1))))
-      (cljmap))
-(test (make-closures (build-L5expr '(lambda (x y) (+ x y))))
-      (cljmap 0
-              (lft-clj ':l5clj_0
-                       '(frees x y)
-                       '()
-                       (build-L5expr '(+ x y)))))
-(test (make-closures (build-L5expr '(let ([x (lambda (y) (+ x y))]) x)))
-      (cljmap 1
-              (lft-clj ':l5clj_0
-                       '(frees y)
-                       '(x)
-                       (build-L5expr '(let ([x (aref frees 0)]) (+ x y))))))
-(test (make-closures (build-L5expr '(let ([x 4]) (lambda (y) (+ x y)))))
-      (cljmap 2
-              (lft-clj ':l5clj_0
-                       '(frees y)
-                       '(x)
-                       (build-L5expr '(let ([x (aref frees 0)]) (+ x y))))))
+(test (bif-lbl '+) ':l5bif_plus)
+(test (bif-lbl 'a?) ':l5bif_a)
+
+(test (bif-clj '+) (closure ':l5bif_plus
+                            '(frees arg0 arg1)
+                            (build-L5expr '(+ arg0 arg1))))
+(test (bif-clj 'a?) (closure ':l5bif_a
+                             '(frees arg0)
+                             (build-L5expr '(a? arg0))))
 
 (test (compile-L5expr (build-L5expr '5))
       (build-L4prog '(5)))
@@ -137,8 +122,8 @@
 (test (compile-L5expr (build-L5expr '(let ([x (lambda (t) (t 4 5))]) (print (x +)))))
       (build-L4prog '((let ([x (make-closure :l5clj_0 0)])
                         (print ((closure-proc x) (closure-vars x) (make-closure :l5bif_plus 0))))
-                      (:l5clj_0 (frees t) ((closure-proc t) (closure-vars t) 4 5))
-                      (:l5bif_plus (frees arg0 arg1) (+ arg0 arg1)))))
+                      (:l5bif_plus (frees arg0 arg1) (+ arg0 arg1))
+                      (:l5clj_0 (frees t) ((closure-proc t) (closure-vars t) 4 5)))))
 
 (test (compile-L5expr (build-L5expr '(letrec ([x 6]) (print x))))
       (build-L4prog '((let ([recvar_0 (new-tuple 0)])
