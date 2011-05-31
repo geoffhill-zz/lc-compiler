@@ -10,7 +10,6 @@
 (require (file "input.rkt"))
 (require (file "output.rkt"))
 
-; TODO: fix discrepancy between lambdas and builtins
 ; TODO: fix 3-argument limit
 
 ;;;
@@ -32,7 +31,10 @@
   (cljmap? integer? . -> . LiftedClj?)
   (or
    (hash-ref m i #f)
-   (error 'cljmap "key doesn't exist")))
+   (begin
+     (pretty-print m)
+     (pretty-print i)
+     (error 'cljmap "key doesn't exist"))))
 
 (define cljmap-getall hash-values)
 
@@ -125,10 +127,10 @@
                           (bind-var body oldvar arr)))]
     [l5e-letrec (id binding body)
                 (l5e-letrec id
-                      (bind-var binding oldvar arr)
-                      (if (equal? oldvar id)
-                          body
-                          (bind-var body oldvar arr)))]
+                            (bind-var binding oldvar arr)
+                            (if (equal? oldvar id)
+                                body
+                                (bind-var body oldvar arr)))]
     [l5e-if (test then else)
             (l5e-if (bind-var test oldvar arr)
                     (bind-var then oldvar arr)
@@ -158,7 +160,9 @@
 ;;; CLOSURE GENERATION
 ;;;
 
-(define env-tup 'vars_tup)
+(define freevar-tuple-name 'frees)
+(define empty-freevar-tuple-subst (l5e-num 0))
+
 (define-with-contract (bif-lbl bif)
   (L5-builtin? . -> . label?)
   (case bif
@@ -187,7 +191,7 @@
          [varfn (make-counter 'arg)]
          [args (for/list ([i (in-range (bif-arity bif))]) (varfn))]
          [body (l5e-app (l5e-prim bif) (map l5e-var args))])
-    (lft-clj lbl (cons env-tup args) '() body)))
+    (lft-clj lbl (cons freevar-tuple-name args) '() body)))
 
 (define-with-contract (make-closures expr)
   (L5expr? . -> . cljmap?)
@@ -201,6 +205,7 @@
     [l5e-lambda (args body)
                 (let* ([pos (counter)]
                        [lbl (lblfn)]
+                       [body-cljs (make-closures-traverse body counter lblfn)]
                        [frees (set-subtract (free-vars body) (list->set args))]
                        [freeslst (alphabetize frees)]
                        [newbody (let loop ([newbody body]
@@ -211,16 +216,16 @@
                                       (loop (l5e-let
                                              (first vs)
                                              (l5e-app (l5e-prim 'aref)
-                                                      `(,(l5e-var env-tup)
+                                                      `(,(l5e-var freevar-tuple-name)
                                                         ,(l5e-num i)))
                                              newbody)
                                             (rest vs)
                                             (+ i 1))))])
                   (cljmap-extend
-                   (make-closures-traverse body counter lblfn)
+                   body-cljs
                    pos
                    (lft-clj lbl
-                            (cons env-tup args)
+                            (cons freevar-tuple-name args)
                             freeslst
                             newbody)))]
     [l5e-let (id binding body)
@@ -259,7 +264,7 @@
                (counter)
                (cljmap-lstunion
                 (cons (if (l5e-prim? fn)
-                          (cljmap) ;; primitives in fn position don't need closures
+                          (begin (counter) (cljmap)) ;; primitives in fn position don't need closures
                           (make-closures-traverse fn counter lblfn))
                       (map (λ (arg) (make-closures-traverse arg counter lblfn)) args))))]
     [l5e-prim (prim) (cljmap (counter) (bif-clj prim))]
@@ -282,9 +287,13 @@
                        [clj (cljmap-get cljs pos)])
                   (type-case LiftedClj clj
                     [lft-clj (lbl args frees body)
-                             (l5e-app (l5e-var 'make-closure)
-                                      `(,(l5e-var lbl)
-                                        ,(l5e-newtuple (map l5e-var frees))))]))]
+                             (begin
+                               (lambda-lift-traverse body cljs counter)
+                               (l5e-app (l5e-var 'make-closure)
+                                        `(,(l5e-var lbl)
+                                          ,(if (zero? (length frees))
+                                               empty-freevar-tuple-subst
+                                               (l5e-newtuple (map l5e-var frees))))))]))]
     [l5e-let (id binding body)
              (begin
                (counter)
@@ -316,20 +325,29 @@
                   (lambda-lift-traverse fst cljs counter)
                   (lambda-lift-traverse snd cljs counter)))]
     [l5e-app (fn args)
-             (let ([pos (counter)]
-                   [traversed-fn (lambda-lift-traverse fn cljs counter)]
-                   [traversed-args
-                    (map (λ (arg) (lambda-lift-traverse arg cljs counter))
-                         args)])
-               (if (l5e-prim? traversed-fn)
-                   (l5e-app traversed-fn traversed-args)
-                   (l5e-app (l5e-app (l5e-var 'closure-proc)
-                                     `(,traversed-fn))
-                            (cons
-                             (l5e-app (l5e-var 'closure-vars)
-                                      `(,traversed-fn))
-                             traversed-args))))]
-    [l5e-prim (prim) (begin (counter) expr)]
+             (begin
+               (counter)
+               (let ([traversed-fn
+                      (if (l5e-prim? fn)
+                          (begin (counter) fn)
+                          (lambda-lift-traverse fn cljs counter))]
+                     [traversed-args
+                      (map (λ (arg) (lambda-lift-traverse arg cljs counter))
+                           args)])
+                 (if (l5e-prim? traversed-fn)
+                     (l5e-app traversed-fn traversed-args)
+                     (l5e-app (l5e-app (l5e-var 'closure-proc)
+                                       `(,traversed-fn))
+                              (cons
+                               (l5e-app (l5e-var 'closure-vars)
+                                        `(,traversed-fn))
+                               traversed-args)))))]
+    [l5e-prim (prim)
+              (begin
+                (counter)
+                (l5e-app (l5e-var 'make-closure)
+                         `(,(l5e-var (bif-lbl prim))
+                           ,empty-freevar-tuple-subst)))]
     [l5e-var (var) (begin (counter) expr)]
     [l5e-num (num) (begin (counter) expr)]))
 
@@ -390,9 +408,9 @@
 (define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4prog?)
   (let* ([expr-flat (elim-letrec expr)]
-         [cljs (make-closures expr)]
+         [cljs (make-closures expr-flat)]
          [others (cljmap-getall cljs)])
-    (l4prog (l4mainfn (convert-L5expr (lambda-lift expr cljs)))
+    (l4prog (l4mainfn (convert-L5expr (lambda-lift expr-flat cljs)))
             (map (λ (clj)
                    (type-case LiftedClj clj
                      [lft-clj (lbl args frees body)
@@ -403,11 +421,11 @@
   (L5expr? . -> . L4expr?)
   (type-case L5expr expr
     [l5e-lambda (args body)
-                (error 'L5 "should not see lambda after lambda-lifting")]
+                (error 'L5 "must lift lambdas")]
     [l5e-let (id binding body)
              (l4e-let id (convert-L5expr binding) (convert-L5expr body))]
     [l5e-letrec (id binding body)
-                (error 'L5 "should not see letrec after lambda-lifting")]
+                (error 'L5 "must eliminate letrecs")]
     [l5e-if (test then else)
             (l4e-if (convert-L5expr test)
                     (convert-L5expr then)
