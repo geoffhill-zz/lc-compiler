@@ -9,8 +9,9 @@
 (require (file "types.rkt"))
 (require (file "input.rkt"))
 (require (file "output.rkt"))
+(require (file "renaming.rkt"))
 
-; TODO: prefix all labels
+;; TODO: move counter closures out of global for testing
 
 ;;;
 ;;; L3 -> L2 COMPILATION
@@ -27,10 +28,11 @@
 ;; compile an L3prog into an L2prog
 (define-with-contract (compile-L3prog prog)
   (L3prog? . -> . L2prog?)
-  (type-case L3prog prog
-    [l3prog (main others)
-            (l2prog (compile-L3fn main)
-                    (map compile-L3fn others))]))
+  (let ([renamed-prog (rename-L3prog prog)])
+    (type-case L3prog renamed-prog
+      [l3prog (main others)
+              (l2prog (compile-L3fn main)
+                      (map compile-L3fn others))])))
 
 ;; compile an L3fn into an L2fn
 (define-with-contract (compile-L3fn fn)

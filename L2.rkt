@@ -9,6 +9,7 @@
 (require (file "types.rkt"))
 (require (file "input.rkt"))
 (require (file "output.rkt"))
+(require (file "renaming.rkt"))
 
 ;;;
 ;;; GENERAL UTILITY FUNCTIONS
@@ -279,8 +280,7 @@
 ;;; L3FN-COLOR GENERATION
 ;;;
 
-; TODO: fix prefixing
-(define spill-prefix '____spillpref)
+(define spill-prefix '____spilled)
 
 ;; creates an L2reg-color from L2reg-graph
 (define-with-contract (build-l2reg-color l2fn)
@@ -462,10 +462,11 @@
 ;; compile an L2prog into an L1prog
 (define-with-contract (compile-L2prog prog)
   (L2prog? . -> . L1prog?)
-  (type-case L2prog prog
-    [l2prog (main others)
-            (l1prog (compile-L2fn main)
-                    (map compile-L2fn others))]))
+  (let ([renamed-prog (rename-L2prog prog)])
+    (type-case L2prog renamed-prog
+      [l2prog (main others)
+              (l1prog (compile-L2fn main)
+                      (map compile-L2fn others))])))
 
 ;; compile an L2fn into an L1fn
 (define-with-contract (compile-L2fn fn)
