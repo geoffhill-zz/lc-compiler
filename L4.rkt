@@ -9,73 +9,7 @@
 (require (file "types.rkt"))
 (require (file "input.rkt"))
 (require (file "output.rkt"))
-
-;;;
-;;; VARIABLE AND LABEL RENAMING
-;;;
-
-;; renames all the variables in L4 programs
-;; variables do not carry across functions
-;; lets always generate new variables, ignoring existing ones
-
-(define-with-contract (rename-L4prog prog)
-  (L4prog? . -> . L4prog?)
-  (define varfn (make-counter 'var_))
-  (type-case L4prog prog
-    [l4prog (main others)
-            (l4prog (rename-L4fn main varfn)
-                    (map (λ (fn) (rename-L4fn fn varfn)) others))]))
-
-(define-with-contract (rename-L4fn fn varfn)
-  (L4fn? (-> symbol?) . -> . L4fn?)
-  (type-case L4fn fn
-    [l4mainfn (body)
-              (l4mainfn (rename-L4expr body (namemap) varfn))]
-    [l4fn (lbl args body)
-          (let-values ([(newargs changes)
-                        (let loop ([args args]
-                                   [renamed '()]
-                                   [changes (namemap)])
-                          (if (null? args)
-                              (values (reverse renamed) changes)
-                              (let* ([arg (first args)]
-                                     [newarg (hash-ref changes arg varfn)]
-                                     [changes (hash-set changes arg newarg)])
-                                (loop (rest args) (cons newarg renamed) changes))))])
-            (l4fn lbl newargs (rename-L4expr body changes varfn)))]))
-
-(define-with-contract (rename-L4expr expr changes varfn)
-  (L4expr? namemap? (-> symbol?) . -> . L4expr?)
-  (type-case L4expr expr
-    [l4e-let (id binding body)
-             (let* ([newid (varfn)]
-                    [newbinding (rename-L4expr binding changes varfn)]
-                    [newchanges (hash-set changes id newid)]
-                    [newbody (rename-L4expr body newchanges varfn)])
-               (l4e-let newid newbinding newbody))]
-    [l4e-if (test then else)
-            (let* ([newtest (rename-L4expr test changes varfn)]
-                   [newthen (rename-L4expr then changes varfn)]
-                   [newelse (rename-L4expr else changes varfn)])
-              (l4e-if newtest newthen newelse))]
-    [l4e-app (fn args)
-             (let ([newfn (rename-L4expr fn changes varfn)]
-                   [newargs (let loop ([args args]
-                                       [renamed '()])
-                              (if (null? args)
-                                  (reverse renamed)
-                                  (let ([newarg (rename-L4expr (first args) changes varfn)])
-                                    (loop (rest args) (cons newarg renamed)))))])
-               (l4e-app newfn newargs))]
-    [l4e-begin (fst snd)
-               (let* ([newfst (rename-L4expr fst changes varfn)]
-                      [newsnd (rename-L4expr snd changes varfn)])
-                 (l4e-begin newfst newsnd))]
-    [l4e-v (v)
-           (if (or (number? v) (label? v) (L4-builtin? v))
-               (l4e-v v)
-               (l4e-v (hash-ref changes v varfn)))]))
-
+(require (file "renaming.rkt"))
 
 ;;;
 ;;; L4 -> L3 COMPILATION
@@ -83,10 +17,11 @@
 
 (define-with-contract (compile-L4prog prog)
   (L4prog? . -> . L3prog?)
-  (type-case L4prog (rename-L4prog prog)
-    [l4prog (main others)
-            (l3prog (compile-L4fn main)
-                    (map compile-L4fn others))]))
+  (let ([renamed-prog (rename-L4prog prog)])
+    (type-case L4prog renamed-prog
+      [l4prog (main others)
+              (l3prog (compile-L4fn main)
+                      (map compile-L4fn others))])))
 
 (define-with-contract (compile-L4fn fn)
   (L4fn? . -> . L3fn?)
@@ -100,17 +35,17 @@
     [l4e-let (id binding body)
              (let ([binding (compile-L4expr binding)])
                (unless (l3e-t? binding)
-                 (error 'L4 "should never find binding expressions in normalized expr"))
+                 (error 'L4 "expr not normalized, found let binding subexpr"))
                (l3e-let id (l3e-t-t binding) (compile-L4expr body)))]
     [l4e-if (test then else)
             (let ([test (compile-L4expr test)])
               (unless (l3e-t? test)
-                (error 'L4 "should never find test expressions in normalized expr, got ~a" test))
+                (error 'L4 "expr not normalized, found if test subexpr"))
               (l3e-if (l3t-v-v (l3e-t-t test))
                       (compile-L4expr then)
                       (compile-L4expr else)))]
     [l4e-begin (fst snd)
-               (error 'L4 "should never find begin in normalized expr")]
+               (error 'L4 "expr not normalized, found begin expr")]
     [l4e-app (fn args)
              (l3e-t (build-L3term (format-L4expr expr)))]
     [l4e-v (v) (l3e-t (l3t-v v))]))
@@ -119,10 +54,12 @@
 ;;; A-NORMALIZATION
 ;;;
 
+(define L4-letvar-prefix 'r)
+
 ;; transforms an L4expr to an ANF L4expr
 (define-with-contract (normalize expr)
   (L4expr? . -> . L4expr?)
-  (define varfn (make-counter 'letvar_))
+  (define varfn (make-counter L4-letvar-prefix))
   (find expr (mt-ctxt) varfn))
 
 (define-type L4ctxt
