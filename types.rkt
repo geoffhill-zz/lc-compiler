@@ -11,8 +11,8 @@
 ;;;
 
 (define-type L1prog
-  [l1prog (main L1fn?)
-          (others (listof L1fn?))])
+  [l1prog (main l1mainfn?)
+          (others (listof l1fn?))])
 
 #|
 (type-case L1prog prog
@@ -20,11 +20,14 @@
 |#
 
 (define-type L1fn
-  [l1fn (stmts (listof L1stmt?))])
+  [l1mainfn (stmts (listof L1stmt?))]
+  [l1fn (lbl label?)
+        (stmts (listof L1stmt?))])
 
 #|
 (type-case L1fn fn
-  [l1fn (stmts) fn])
+  [l1mainfn (stmts) fn]
+  [l1fn (lbl stmts) fn])
 |#
 
 (define-type L1stmt
@@ -68,19 +71,23 @@
 ;;;
 
 (define-type L2prog
-  [l2prog (main L2fn?)
-          (others (listof L2fn?))])
+  [l2prog (main l2mainfn?)
+          (others (listof l2fn?))])
+
 #|
 (type-case L2prog prog
   [l2prog (main others) prog])
 |#
 
 (define-type L2fn
-  [l2fn (stmts (listof L2stmt?))])
+  [l2mainfn (stmts (listof L2stmt?))]
+  [l2fn (lbl label?)
+        (stmts (listof L2stmt?))])
 
 #|
 (type-case L2fn fn
-  [l2fn (stmts) fn])
+  [l2mainfn (stmts) fn]
+  [l2fn (lbl stmts) fn])
 |#
 
 (define-type L2stmt

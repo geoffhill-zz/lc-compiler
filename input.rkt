@@ -13,13 +13,20 @@
 ;;;
 
 (define-with-contract (build-L1prog src)
-  (any/c . -> . L1prog?)
-  (l1prog (build-L1fn (car src))
-          (map build-L1fn (cdr src))))
+  (list? . -> . L1prog?)
+  (l1prog (build-l1mainfn (car src))
+          (map build-l1fn (cdr src))))
 
-(define-with-contract (build-L1fn src)
-  (any/c . -> . L1fn?)
-  (l1fn (map build-L1stmt src)))
+(define-with-contract (build-l1mainfn src)
+  (any/c . -> . l1mainfn?)
+  (l1mainfn (build-L1stmt src)))
+
+(define-with-contract (build-l1fn src)
+  (any/c . -> . l1fn?)
+  (match src
+    [`(,(? label? lbl) ,stmts)
+     (l1fn lbl (map build-L1stmt stmts))]
+    [_ (error 'L1 "not a well-formed function")]))
 
 (define-with-contract (build-L1stmt src)
   (any/c . -> . L1stmt?)
@@ -47,13 +54,20 @@
 ;;;
 
 (define-with-contract (build-L2prog src)
-  (any/c . -> . L2prog?)
-  (l2prog (build-L2fn (car src))
-          (map build-L2fn (cdr src))))
+  (list? . -> . L2prog?)
+  (l2prog (build-l2mainfn (car src))
+          (map build-l2fn (cdr src))))
 
-(define-with-contract (build-L2fn src)
-  (any/c . -> . L2fn?)
-  (l2fn (map build-L2stmt src)))
+(define-with-contract (build-l2mainfn src)
+  (any/c . -> . l2mainfn?)
+  (l2mainfn (build-L2stmt src)))
+
+(define-with-contract (build-l2fn src)
+  (any/c . -> . l2fn?)
+  (match src
+    [`(,(? label? lbl) ,stmts)
+     (l2fn lbl (map build-L2stmt stmts))]
+    [_ (error 'L2 "not a well-formed function")]))
 
 (define-with-contract (build-L2stmt src)
   (any/c . -> . L2stmt?)

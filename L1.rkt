@@ -14,11 +14,12 @@
 ;;; L1 -> x86 COMPILATION
 ;;;
 
-(define gen-new-label (make-counter ':l1_lbl_))
+(define L1-jlbl-prefix ':j)
 
 (define-with-contract (compile-L1prog prog)
   (L1prog? . -> . string?)
-  (let ([out (open-output-string)])
+  (let ([out (open-output-string)]
+        [lblfn (make-counter L1-jlbl-prefix)]
     (type-case L1prog prog
       [l1prog (main others)
               (begin
