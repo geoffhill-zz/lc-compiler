@@ -4,8 +4,6 @@
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
-(require (file "preds.rkt"))
-
 ; macro for function definitions
 ; enabling this value causes contracts to be enforced
 (define-syntax (define-with-contract stx)
@@ -15,21 +13,6 @@
      (if enforce-contracts?
          #'(define/contract (fn args ...) fn-contract body-exprs ...)
          #'(define (fn args ...) body-exprs ...))]))
-
-;; namemap type
-;; immutable hash, maps variables to variables or labels to labels
-;; defines constructor, contract, and label simplification
-; TODO: move namemap into types.rkt encapsulating hash-ref and hash-set
-(define namemap hash)
-(define namemap?
-  (flat-named-contract
-   'namemap?
-   (hash/c symbol? symbol? #:immutable #t #:flat? #t)))
-(define (namemap-lbls-only nm)
-  (make-immutable-hash
-   (filter (not/c null?)
-           (hash-map nm (λ (k v) (if (label? k) (cons k v) '()))))))
-
 
 ; like set/c, but works as a predicate
 (define (setof inside-pred?)
@@ -90,33 +73,10 @@
   ((listof set?) . -> . set?)
   (apply set-union (cons (set) setlst)))
 
-; giben a set and a predicate, return a filtered set
+; given a set and a predicate, return a filtered set
 (define-with-contract (set-filter s pred)
   (set? procedure? . -> . set?)
   (list->set (filter pred (set->list s))))
-
-; given a vectorof setof symbols, return a listof listof symbols 
-; vector stays in order, but set is alphabetized
-(define-with-contract (vs->ll vs)
-  ((vectorof (set/c symbol?)) . -> . (listof (listof symbol?)))
-  (map alphabetize
-       (vector->list (vector-map (λ (s) (set->list s)) vs))))
-
-; given a hashof symbols keyed by symbols, return a listof listof symbols
-; outer list alphabetized by the key
-; inner lists have 2 elements
-(define-with-contract (hts->list ht)
-  ((hash/c symbol? symbol?) . -> . (listof (listof symbol?)))
-  (map (λ (entry) (list (car entry) (cdr entry)))
-       (alphabetize (hash->list ht))))
-
-; given a hashof setof symbols keyed by symbols, return a listof listof symbols
-; outer list alphabetized by the key
-; inner lists have key as first element, rest alphabetized
-(define-with-contract (htss->list ht)
-  ((hash/c symbol? (set/c symbol?)) . -> . (listof (listof symbol?)))
-  (map (λ (entry) (cons (car entry) (alphabetize (set->list (cdr entry)))))
-       (alphabetize (hash->list ht))))
 
 ; gets the set of every set combination of 2 items from a set
 ; outer set has size n-choose-2, inner sets have size 2

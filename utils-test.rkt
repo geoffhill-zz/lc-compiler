@@ -7,10 +7,24 @@
 
 (require (file "utils.rkt"))
 
-(test (namemap-lbls-only (namemap))
-      (namemap))
-(test (namemap-lbls-only (namemap ':a ':b ':c ':d 'a 'b 'c 'd ':y ':z))
-      (namemap ':a ':b ':c ':d ':y ':z))
+(test ((setof integer?) (set)) #t)
+(test ((setof integer?) (set 0)) #t)
+(test ((setof integer?) (set 4 5 -8)) #t)
+(test ((setof integer?) (set 2 'a)) #f)
+(test ((setof integer?) (set 'b 5)) #f)
+
+(test ((non-empty-setof integer?) (set 0)) #t)
+(test ((non-empty-setof integer?) (set 4 5 -8)) #t)
+(test ((non-empty-setof integer?) (set)) #f)
+(test ((non-empty-setof integer?) (set 2 'a)) #f)
+(test ((non-empty-setof integer?) (set 'b 5)) #f)
+
+(test ((pairof integer?) (set 8 9)) #t)
+(test ((pairof integer?) (set)) #f)
+(test ((pairof integer?) (set 0)) #f)
+(test ((pairof integer?) (set 4 5 -8)) #f)
+(test ((pairof integer?) (set 2 'a)) #f)
+(test ((pairof integer?) (set 'b 5)) #f)
 
 (test (member? 1 '()) #f)
 (test (member? 1 '(1 2 3)) #t)
@@ -49,41 +63,6 @@
 (test (set-filter (set 0 1 2 3 4 5 6) odd?) (set 1 3 5))
 (test (set-filter (set 'eax 'ebx 'ecx) (λ (x) (symbol=? 'esi x))) (set))
 (test (set-filter (set 'edx 'esi 'edi) (λ (x) (symbol=? 'edi x))) (set 'edi))
-
-(test (vs->ll (vector)) '())
-(test (vs->ll (vector (set))) (list '()))
-(test (vs->ll (vector (set) (set 'a 'b) (set 'd 'c) (set 'z 'x 'y)))
-      (list '() '(a b) '(c d) '(x y z)))
-
-(test (hts->list
-       (make-hash
-        `((b . eax)
-          (ecx . ecx)
-          (f . edi)
-          (a . edx)
-          (eax . eax)
-          (esi . esi)
-          (edi . edi))))
-      `((a edx)
-        (b eax)
-        (eax eax)
-        (ecx ecx)
-        (edi edi)
-        (esi esi)
-        (f edi)))
-
-(test (htss->list
-       (make-hash
-        `((b . ,(set 'eax 'esi 'ecx 'edi))
-          (ecx . ,(set 'a 'b))
-          (a . ,(set 'ecx 'edi 'edx))
-          (eax . ,(set 'b 'esi 'edi))
-          (esi . ,(set 'eax 'b)))))
-      `((a ecx edi edx)
-        (b eax ecx edi esi)
-        (eax b edi esi)
-        (ecx a b)
-        (esi b eax)))
 
 (test (powerset (set 7)) (set))
 (test (powerset (set 9 't)) (set (set 9 't)))
