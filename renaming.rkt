@@ -11,26 +11,29 @@
 ;;; where possible, the renaming mechanism clears up any
 ;;; instances of variable shadowing due to scope
 
-;; symbol-map abstract data type
-(define symbol-map make-hash)
-(define symbol-map?
+;; TODO: process function labels first in L2 like L3-L4
+
+;; dictionary abstract data type
+(define dict make-hash)
+(define dict?
   (flat-named-contract
-   'symbol-map?
+   'dict?
    (hash/c symbol? symbol? #:immutable #f #:flat? #t)))
 
-;; symbol map extension, for same-scope renaming
-(define-with-contract (symbol-map-extend! m k v-thunk)
-  (symbol-map? symbol? (-> symbol?) . -> . symbol?)
+;; dictionary extension, for same-scope renaming
+(define-with-contract (dict-extend! m k v-thunk)
+  (dict? symbol? (-> symbol?) . -> . symbol?)
   (or (hash-ref m k #f)
       (let ([v (v-thunk)])
         (hash-set! m k v)
         v)))
 
-;; symbol map overriding, for inner-scope renaming
-(define-with-contract (symbol-map-override! m k v-thunk)
-  (symbol-map? symbol? (-> symbol?) . -> . symbol?)
-  (hash-set! m k v)
-  v)
+;; dictionary overriding, for inner-scope renaming
+(define-with-contract (dict-override! m k v-thunk)
+  (dict? symbol? (-> symbol?) . -> . symbol?)
+  (let ([v (v-thunk)])
+    (hash-set! m k v)
+    v))
 
 ;;;
 ;;; L2 RENAMING
@@ -44,27 +47,27 @@
   (type-case L2prog prog
     [l2prog (main others)
             (let ([lblfn (make-counter L2-lbl-prefix)]
-                  [lblmap (symbol-map)])
+                  [lblmap (dict)])
               (l2prog (rename-L2fn main lblfn lblmap)
                       (for/list ([fn others])
                         (rename-L2fn fn lblfn lblmap))))]))
 
 (define-with-contract (rename-L2fn fn lblfn lblmap)
-  (L2fn? (-> symbol?) symbol-map? . -> . L2fn?)
+  (L2fn? (-> symbol?) dict? . -> . L2fn?)
   (type-case L2fn fn
     [l2fn (stmts)
           (l2fn (let ([varfn (make-counter L2-var-prefix)]
-                      [varmap (symbol-map)])
+                      [varmap (dict)])
                   (for/list ([stmt stmts])
                     (rename-L2stmt stmt lblfn varfn lblmap varmap))))]))
 
 (define-with-contract (rename-L2stmt stmt lblfn varfn lblmap varmap)
-  (L2stmt? (-> symbol?) (-> symbol?) symbol-map? symbol-map? . -> . L2stmt?)
+  (L2stmt? (-> symbol?) (-> symbol?) dict? dict? . -> . L2stmt?)
   (define (replace x)
     (cond
-      [(label? x) (symbol-map-extend! lblmap x lblfn)]
+      [(label? x) (dict-extend! lblmap x lblfn)]
       [(or (num? x) (reg? x)) x]
-      [else (symbol-map-extend! varmap x varfn)]))
+      [else (dict-extend! varmap x varfn)]))
   (type-case L2stmt stmt
     [l2s-assign (lhs rhs)
                 (l2s-assign (replace lhs) (replace rhs))]
@@ -107,39 +110,130 @@
   (type-case L3prog prog
     [l3prog (main others)
             (let ([lblfn (make-counter L3-lbl-prefix)]
-                  [lblmap (symbol-map)])
+                  [lblmap (dict)])
+              (for/list ([fn others])
+                (dict-extend! lblmap (l3fn-lbl fn) lblfn))
               (l3prog (rename-L3fn main lblfn lblmap)
                       (for/list ([fn others])
                         (rename-L3fn fn lblfn lblmap))))]))
 
 (define-with-contract (rename-L3fn fn lblfn lblmap)
-  (L3fn? (-> symbol?) symbol-map? . -> . L3fn?)
+  (L3fn? (-> symbol?) dict? . -> . L3fn?)
   (let ([varfn (make-counter L3-var-prefix)]
-        [varmap (symbol-map)])
+        [varmap (dict)])
     (type-case L3fn fn
       [l3mainfn (body)
                 (l3mainfn (rename-L3expr body lblfn varfn lblmap varmap))]
       [l3fn (lbl args body)
-            (l3fn (symbol-map-extend lblmap lbl lblfn)
+            (l3fn (dict-extend! lblmap lbl lblfn)
                   (for/list ([arg args])
-                    (symbol-map-extend varmap arg varfn))
+                    (dict-extend! varmap arg varfn))
                   (rename-L3expr body lblfn varfn lblmap varmap))])))
 
 (define-with-contract (rename-L3expr expr lblfn varfn lblmap varmap)
-  (L3expr? (-> symbol?) (-> symbol?) symbol-map? symbol-map? . -> . L3expr?)
+  (L3expr? (-> symbol?) (-> symbol?) dict? dict? . -> . L3expr?)
+  (define (replace v)
+    (rename-L3v v lblfn varfn lblmap varmap))
   (type-case L3expr expr
     [l3e-let (id binding body)
              (let ([new-binding (rename-L3term binding lblfn varfn lblmap varmap)]
-                   [new-id (symbol-map-override! varmap id varfn)]
+                   [new-id (dict-override! varmap id varfn)]
                    [new-body (rename-L3expr body lblfn varfn lblmap varmap)])
                (l3e-let new-id new-binding new-body))]
     [l3e-if (test then else)
-            (let ([new-test (rename-L3expr test lblfn varfn lblmap varmap)]
+            (let ([new-test (replace test)]
                   [new-then (rename-L3expr then lblfn varfn lblmap varmap)]
                   [new-else (rename-L3expr else lblfn varfn lblmap varmap)])
-              (l3e-if test then else))]
+              (l3e-if new-test new-then new-else))]
     [l3e-t (t)
            (l3e-t (rename-L3term t lblfn varfn lblmap varmap))]))
 
 (define-with-contract (rename-L3term term lblfn varfn lblmap varmap)
-  (L3term? (-> symbol?) (-> symbol?) symbol-map? symbol-map? . -> . L3term?)
+  (L3term? (-> symbol?) (-> symbol?) dict? dict? . -> . L3term?)
+  (define (replace v)
+    (rename-L3v v lblfn varfn lblmap varmap))
+  (type-case L3term term
+    [l3t-biop (op v1 v2) (l3t-biop op (replace v1) (replace v2))]
+    [l3t-pred (pred v) (l3t-pred pred (replace v))]
+    [l3t-apply (fn args) (l3t-apply (replace fn) (for/list ([arg args])
+                                                   (replace arg)))]
+    [l3t-newarray (len init) (l3t-newarray (replace len) (replace init))]
+    [l3t-newtuple (args) (l3t-newtuple (for/list ([arg args])
+                                         (replace arg)))]
+    [l3t-aref (arr i) (l3t-aref (replace arr) (replace i))]
+    [l3t-aset (arr i v) (l3t-aset (replace arr) (replace i) (replace v))]
+    [l3t-alen (arr) (l3t-alen (replace arr))]
+    [l3t-print (v) (l3t-print (replace v))]
+    [l3t-makeclj (proc vars) (l3t-makeclj (replace proc) (replace vars))]
+    [l3t-cljproc (clj) (l3t-cljproc (replace clj))]
+    [l3t-cljvars (clj) (l3t-cljvars (replace clj))]
+    [l3t-v (v) (l3t-v (replace v))]))
+
+(define-with-contract (rename-L3v v lblfn varfn lblmap varmap)
+  (L3-v? (-> symbol?) (-> symbol?) dict? dict? . -> . L3-v?)
+  (cond
+    [(label? v) (dict-extend! lblmap v lblfn)]
+    [(num? v) v]
+    [else (dict-extend! varmap v varfn)]))
+
+;;;
+;;; L4 RENAMING
+;;;
+
+
+
+(define L4-lbl-prefix ':L)
+(define L4-var-prefix 'v)
+
+(define-with-contract (rename-L4prog prog)
+  (L4prog? . -> . L4prog?)
+  (type-case L4prog prog
+    [l4prog (main others)
+            (let ([lblfn (make-counter L4-lbl-prefix)]
+                  [lblmap (dict)])
+              (for/list ([fn others])
+                (dict-extend! lblmap (l4fn-lbl fn) lblfn))
+              (l4prog (rename-L4fn main lblfn lblmap)
+                      (for/list ([fn others])
+                        (rename-L4fn fn lblfn lblmap))))]))
+
+(define-with-contract (rename-L4fn fn lblfn lblmap)
+  (L4fn? (-> symbol?) dict? . -> . L4fn?)
+  (let ([varfn (make-counter L4-var-prefix)]
+        [varmap (dict)])
+    (type-case L4fn fn
+      [l4mainfn (body)
+                (l4mainfn (rename-L4expr body lblfn varfn lblmap varmap))]
+      [l4fn (lbl args body)
+            (l4fn (dict-extend! lblmap lbl lblfn)
+                  (for/list ([arg args])
+                    (dict-extend! varmap arg varfn))
+                  (rename-L4expr body lblfn varfn lblmap varmap))])))
+
+(define-with-contract (rename-L4expr expr lblfn varfn lblmap varmap)
+  (L4expr? (-> symbol?) (-> symbol?) dict? dict? . -> . L4expr?)
+  (type-case L4expr expr
+    [l4e-let (id binding body)
+             (let ([new-binding (rename-L4expr binding lblfn varfn lblmap varmap)]
+                   [new-id (dict-override! varmap id varfn)]
+                   [new-body (rename-L4expr body lblfn varfn lblmap varmap)])
+               (l4e-let new-id new-binding new-body))]
+    [l4e-if (test then else)
+            (let ([new-test (rename-L4expr test lblfn varfn lblmap varmap)]
+                  [new-then (rename-L4expr then lblfn varfn lblmap varmap)]
+                  [new-else (rename-L4expr else lblfn varfn lblmap varmap)])
+              (l4e-if new-test new-then new-else))]
+    [l4e-begin (fst snd)
+            (let ([new-fst (rename-L4expr fst lblfn varfn lblmap varmap)]
+                  [new-snd (rename-L4expr snd lblfn varfn lblmap varmap)])
+              (l4e-begin new-fst new-snd))]
+    [l4e-app (fn args)
+            (let ([new-fn (rename-L4expr fn lblfn varfn lblmap varmap)]
+                  [new-args (for/list ([arg args])
+                              (rename-L4expr arg lblfn varfn lblmap varmap))])
+              (l4e-app new-fn new-args))]
+    [l4e-v (v)
+           (l4e-v (cond
+                    [(label? v) (dict-extend! lblmap v lblfn)]
+                    [(or (num? v) (L4-builtin? v)) v]
+                    [else (dict-extend! varmap v varfn)]))]))
