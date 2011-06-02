@@ -1,6 +1,6 @@
 #lang plai
 
-;;; EECS 322 L Compiler Output (Code Generation)
+;;; EECS 322 L Compiler PLAI Output (Code Generation)
 ;;; Geoff Hill <GeoffreyHill2012@u.northwestern.edu>
 ;;; Spring 2011
 
@@ -12,17 +12,16 @@
 ;;;
 
 (define-with-contract (format-L1prog prog)
-  (L1prog? . -> . any/c)
+  (L1prog? . -> . list?)
   (type-case L1prog prog
     [l1prog (main others)
-            (cons (format-L1fn main)
-                  (map format-L1fn others))]))
+            `(,(format-L1fn main) ,@(map format-L1fn others))]))
 
 (define-with-contract (format-L1fn fn)
   (L1fn? . -> . any/c)
   (type-case L1fn fn
-    [l1fn (stmts)
-          (map format-L1stmt stmts)]))
+    [l1mainfn (stmts) (map format-L1stmt stmts)]
+    [l1fn (lbl stmts) `(,lbl ,@(map format-L1stmt stmts))]))
 
 (define-with-contract (format-L1stmt stmt)
   (L1stmt? . -> . any/c)
@@ -48,17 +47,16 @@
 ;;;
 
 (define-with-contract (format-L2prog prog)
-  (L2prog? . -> . any/c)
+  (L2prog? . -> . list?)
   (type-case L2prog prog
     [l2prog (main others)
-            (cons (format-L2fn main)
-                  (map format-L2fn others))]))
+            `(,(format-L2fn main) ,@(map format-L2fn others))]))
 
 (define-with-contract (format-L2fn fn)
   (L2fn? . -> . any/c)
   (type-case L2fn fn
-    [l2fn (stmts)
-          (map format-L2stmt stmts)]))
+    [l2mainfn (stmts) (map format-L2stmt stmts)]
+    [l2fn (lbl stmts) `(,lbl ,@(map format-L2stmt stmts))]))
 
 (define-with-contract (format-L2stmt stmt)
   (L2stmt? . -> . any/c)
@@ -84,11 +82,10 @@
 ;;;
 
 (define-with-contract (format-L3prog prog)
-  (L3prog? . -> . any/c)
+  (L3prog? . -> . list?)
   (type-case L3prog prog
     [l3prog (main others)
-            (cons (format-L3fn main)
-                  (map format-L3fn others))]))
+            `(,(format-L3fn main) ,@(map format-L3fn others))]))
 
 (define-with-contract (format-L3fn fn)
   (L3fn? . -> . any/c)
