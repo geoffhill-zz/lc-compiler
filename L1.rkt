@@ -9,6 +9,7 @@
 (require (file "types.rkt"))
 (require (file "input.rkt"))
 (require (file "output.rkt"))
+(require (file "renaming.rkt"))
 
 ;;;
 ;;; L1 -> x86 COMPILATION
@@ -19,44 +20,47 @@
 (define-with-contract (compile-L1prog prog)
   (L1prog? . -> . string?)
   (let ([out (open-output-string)]
-        [lblfn (make-counter L1-jlbl-prefix)]
-    (type-case L1prog prog
+        [renamed-prog (rename-L1prog prog)]
+        [lblfn (make-counter L1-jlbl-prefix)])
+    (type-case L1prog renamed-prog
       [l1prog (main others)
               (begin
                 (fprintf out ".text~n")
                 (fprintf out ".globl very_first_fn~n")
                 (fprintf out ".type very_first_fn, @function~n~n")
-                (compile-L1fn main out #t)
-                (map (λ (fn) (compile-L1fn fn out #f)) others)
+                (compile-L1fn main out lblfn)
+                (map (λ (fn) (compile-L1fn fn out lblfn)) others)
                 (fprintf out "~n.size very_first_fn, .-very_first_fn~n")
                 (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
                 (get-output-string out))])))
 
-(define-with-contract (compile-L1fn fn out main?)
-  (L1fn? output-port? boolean? . -> . void?)
+(define-with-contract (compile-L1fn fn out lblfn)
+  (L1fn? output-port? (-> symbol?) . -> . void?)
   (type-case L1fn fn
-    [l1fn (stmts)
+    [l1mainfn (stmts)
+              (begin
+                (fprintf out "very_first_fn:~n")
+                (fprintf out (format "  pushl ~a~n" (asm-s 'ebp)))
+                (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
+                (fprintf out "  pushal~n")
+                (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
+                (map (λ (stmt) (compile-L1stmt stmt out)) stmts)
+                (fprintf out "  popal~n")
+                (fprintf out "  leave~n")
+                (fprintf out "  ret~n"))]
+    [l1fn (lbl stmts)
           (begin
-            (when main?
-              (fprintf out (format "very_first_fn:~n"))
-              (fprintf out (format "  pushl ~a~n" (asm-s 'ebp)))
-              (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
-              (fprintf out "  pushal~n")
-              (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp))))
-            (map (λ (stmt) (compile-L1stmt stmt out)) stmts)
-            (when main?
-              (fprintf out "  popal~n")
-              (fprintf out "  leave~n")
-              (fprintf out "  ret~n"))
-            (void))]))
-
-(define-with-contract (compile-L1stmt stmt out)
-  (L1stmt? output-port? . -> . void?)
-  (fprintf out (asm-stmt stmt))
+            (format "~n~a:~n" (asm-s lbl))
+            (map (λ (stmt) (compile-L1stmt stmt out)) stmts))])
   (void))
 
-(define-with-contract (asm-stmt stmt)
-  (L1stmt? . -> . string?)
+(define-with-contract (compile-L1stmt stmt out lblfn)
+  (L1stmt? output-port? (-> symbol?) . -> . void?)
+  (fprintf out (asm-stmt stmt lblfn))
+  (void))
+
+(define-with-contract (asm-stmt stmt lblfn)
+  (L1stmt? (-> symbol?) . -> . string?)
   (type-case L1stmt stmt
     [l1s-assign (lhs rhs)
                  (if (and (num? rhs) (zero? rhs))
@@ -122,7 +126,7 @@
                                (case op [(<) "jl"] [(<=) "jle"] [(=) "je"]) (asm-s-lsb lbl1)
                                (asm-s lbl2))])]
     [l1s-call (dst)
-               (let ([new-label (gen-new-label)])
+               (let ([new-label (lblfn)])
                  (format "  pushl $~a~n  pushl ~a~n  movl ~a, ~a~n  jmp ~a~n  ~a:~n"
                          (asm-s new-label)
                          (asm-s 'ebp)
