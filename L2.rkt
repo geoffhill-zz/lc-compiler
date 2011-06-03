@@ -296,7 +296,7 @@
           (if (set-empty? spillables)
               (error 'L2 "no variables left to spill")
               (let-values ([(next rest) (choose-spill-var spillables nodes edges)])
-                (let* ([stmt-lst (vector->list (vector-map format-L2stmt stmts))]
+                (let* ([stmt-lst (vector->list stmts)]
                        [spilled-fn (spill stmt-lst next (- offset 4) L2-spill-prefix)]
                        [new-base (build-l2reg-base spilled-fn)]
                        [new-succ (build-l2reg-succ new-base)]
@@ -305,9 +305,9 @@
                   (loop new-graph (- offset 4) rest))))))))
 
 ;; spills a variable in an L2fn
-(define-with-contract (spill fn name offset prefix)
-  ((listof L2stmt?) L2-x? n4? L2-x? . -> . L2fn?)
-  (let loop ([stmts (l2fn-stmts fn)]
+(define-with-contract (spill stmts name offset prefix)
+  ((listof L2stmt?) L2-x? n4? L2-x? . -> . (listof L2stmt?))
+  (let loop ([stmts stmts]
              [temp-count 0]
              [accum '()])
     (if (null? stmts)
@@ -369,8 +369,9 @@
 ;; policy decision
 (define-with-contract (choose-spill-var spillables nodes edges)
   ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
-  (let ([splst (alphabetize spillables)])
-    (values (first splst) (list->set (rest splst)))))
+  (let* ([spillable-list (alphabetize spillables)]
+         [spillable-pref (reverse (sort spillable-list < #:key (λ (n) (degree n edges))))])
+    (values (first spillable-pref) (list->set (rest spillable-pref)))))
 
 ;; add statements to fix stack alignment
 ;; ensures that labeled functions stay labeled
@@ -415,12 +416,13 @@
 ;; policy decision
 (define-with-contract (choose-next-node rem-nodes nodes edges)
   ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
-  (let ([nodelst (alphabetize rem-nodes)])
-    (values (first nodelst) (list->set (rest nodelst)))))
+  (let* ([rem-node-list (alphabetize rem-nodes)]
+         [rem-node-pref (reverse (sort rem-node-list < #:key (λ (n) (degree n edges))))])
+    (values (first rem-node-pref) (list->set (rest rem-node-pref)))))
 
 ;; given a set of valid register associations, choose the best one
 ;; policy decision
-(define-with-contract (choose-edge valid-edges nodes egdes)
+(define-with-contract (choose-edge valid-edges nodes edges)
   ((non-empty-setof (pairof L2-x?)) (setof L2-x?) (setof (pairof L2-x?)) . -> . (pairof L2-x?))
   (first (set->list valid-edges)))
 
@@ -449,6 +451,13 @@
   ((pairof L2-x?) L2-x? . -> . L2-x?)
   (first (set->list (set-remove edge node))))
 
+;; given a node and an edge set, get the degree of the node
+(define-with-contract (degree node edges)
+  (L2-x? (setof (pairof L2-x?)) . -> . integer?)
+  (set-count (set-filter edges (λ (e) (let ([lst (set->list e)])
+                                        (or (equal? node (first lst))
+                                            (equal? node (second lst))))))))
+
 ;;;
 ;;; L2 -> L1 COMPILATION
 ;;;
@@ -467,17 +476,11 @@
 ;; compile an L2fn into an L1fn
 (define-with-contract (compile-L2fn fn)
   (L2fn? . -> . L1fn?)
-  (let* ([varfn (make-counter L2-svar-prefix)]
-         [edi-var (varfn)]
-         [esi-var (varfn)]
-         [stmts (append `(,(l2s-assign edi-var 'edi)
-                         ,(l2s-assign esi-var 'esi))
-                       (type-case L2fn fn
-                         [l2mainfn (stmts) stmts]
-                         [l2fn (lbl stmts) stmts])
-                       `(,(l2s-assign edi-var 'edi)
-                         ,(l2s-assign esi-var 'esi)))]
-         [base (build-l2reg-base stmts)]
+  (let* ([stmts (type-case L2fn fn
+                  [l2mainfn (stmts) stmts]
+                  [l2fn (lbl stmts) stmts])]
+         [aliased-stmts (make-alias stmts)]
+         [base (build-l2reg-base aliased-stmts)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]
          [graph (build-l2reg-graph liveness)]
@@ -487,10 +490,41 @@
                          (vector->list
                           (vector-map
                            (λ (stmt) (replace-stmt-vars stmt (λ (x) (hash-ref coloring x x))))
-                           (l2reg-color-stmts color))))])
+                           (l2reg-color-stmts color))))]
+         [useful-stmts (filter useful-stmt? new-stmts)])
     (type-case L2fn fn
-      [l2mainfn (stmts) (l1mainfn new-stmts)]
-      [l2fn (lbl stmts) (l1fn lbl new-stmts)])))
+      [l2mainfn (stmts) (l1mainfn useful-stmts)]
+      [l2fn (lbl stmts) (l1fn lbl useful-stmts)])))
+
+(define-with-contract (make-alias stmts)
+  ((listof L2stmt?) . -> . (listof L2stmt?))
+  (let* ([varfn (make-counter L2-svar-prefix)]
+         [edi-var (varfn)]
+         [esi-var (varfn)])
+    (let loop ([stmts (reverse stmts)]
+               [accum '()])
+      (if (null? stmts)
+           (append `(,(l2s-assign edi-var 'edi)
+                     ,(l2s-assign esi-var 'esi))
+                   accum
+                   `(,(l2s-assign 'edi edi-var)
+                     ,(l2s-assign 'esi esi-var)))
+           (let* ([stmt (first stmts)]
+                  [new-stmts (type-case L2stmt stmt
+                               [l2s-tcall (dst) `(,(l2s-assign 'edi edi-var)
+                                                  ,(l2s-assign 'esi esi-var)
+                                                  ,stmt)]
+                               [l2s-return () `(,(l2s-assign 'edi edi-var)
+                                                ,(l2s-assign 'esi esi-var)
+                                                ,stmt)]
+                               [else `(,stmt)])])
+             (loop (rest stmts) (append new-stmts accum)))))))
+
+(define-with-contract (useful-stmt? stmt)
+  (L1stmt? . -> . boolean?)
+  (type-case L1stmt stmt
+    [l1s-assign (lhs rhs) (not (equal? lhs rhs))]
+    [else #t]))
 
 ;; compile an L2stmt into an L1stmt
 (define-with-contract (compile-L2stmt stmt)
