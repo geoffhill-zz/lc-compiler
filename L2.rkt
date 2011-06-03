@@ -383,7 +383,7 @@
         (let loop ([i (vector-length stmts)]
                    [accum `()])
           (if (zero? i)
-              (list->vector `(,(l2s-aop 'esp '-= pos-offset) ,@accum))
+              (list->vector `(,(l2s-aop 'esp '-= pos-offset) ,@accum ,(l2s-aop 'esp '+= pos-offset)))
               (let* ([stmt (vector-ref stmts (- i 1))]
                      [new-stmts (type-case L2stmt stmt
                                   [l2s-tcall (dst) `(,(l2s-aop 'esp '+= pos-offset) ,stmt)]

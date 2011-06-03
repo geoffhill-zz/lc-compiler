@@ -311,22 +311,22 @@
 (test (kill (build-L2stmt '(return))) (set 'eax 'ecx 'edx))
 
 (test (build-l2reg-base
-       (build-L2fn '()))
+       (map build-L2stmt '()))
       (l2reg-base
        `#()
        '#hash()))
 (test (build-l2reg-base
-       (build-L2fn '((eax <- 5))))
+       (map build-L2stmt '((eax <- 5))))
       (l2reg-base
        `#(,(l2s-assign 'eax 5))
        '#hash()))
 (test (build-l2reg-base
-       (build-L2fn '(:some_lbl)))
+       (map build-L2stmt '(:some_lbl)))
       (l2reg-base
        `#(,(l2s-label ':some_lbl))
        '#hash((:some_lbl . 0))))
 (test (build-l2reg-base
-       (build-L2fn '(:tr :gr :cr (eax <- 5) (edx <- 1) :hg (edx += eax))))
+       (map build-L2stmt '(:tr :gr :cr (eax <- 5) (edx <- 1) :hg (edx += eax))))
       (l2reg-base
        `#(,(l2s-label ':tr)
           ,(l2s-label ':gr)
@@ -339,25 +339,25 @@
 
 (test (build-l2reg-succ
        (build-l2reg-base
-        (build-L2fn '())))
+        (map build-L2stmt '())))
       (l2reg-succ
        `#()
        `#()))
 (test (build-l2reg-succ
        (build-l2reg-base
-        (build-L2fn '((eax <- 5)))))
+        (map build-L2stmt '((eax <- 5)))))
       (l2reg-succ
        `#(,(l2s-assign 'eax 5))
        `#(,(set))))
 (test (build-l2reg-succ
        (build-l2reg-base
-        (build-L2fn '(:some_lbl))))
+        (map build-L2stmt '(:some_lbl))))
       (l2reg-succ
        `#(,(l2s-label ':some_lbl))
        `#(,(set))))
 (test (build-l2reg-succ
        (build-l2reg-base
-        (build-L2fn '(:tr :gr :cr (eax <- 5) (edx <- 1) :hg (edx += eax)))))
+        (map build-L2stmt '(:tr :gr :cr (eax <- 5) (edx <- 1) :hg (edx += eax)))))
       (l2reg-succ
        `#(,(l2s-label ':tr)
           ,(l2s-label ':gr)
@@ -400,21 +400,12 @@
          ,(l2s-assign 't 5)
          ,(l2s-assign 'eax 't)
          ,(l2s-aop 'esp '+= 32)))
-(test (fix-stack `#(,(l2s-label ':fn1) ,(l2s-assign 'g 2) ,(l2s-assign 'eax 'g)) 0)
-      `#(,(l2s-label ':fn1)
-         ,(l2s-assign 'g 2)
-         ,(l2s-assign 'eax 'g)))
-(test (fix-stack `#(,(l2s-label ':fn1) ,(l2s-assign 'g 2) ,(l2s-assign 'eax 'g)) -4)
-      `#(,(l2s-label ':fn1)
-         ,(l2s-aop 'esp '-= 4)
-         ,(l2s-assign 'g 2)
-         ,(l2s-assign 'eax 'g)
-         ,(l2s-aop 'esp '+= 4)))
-(test (fix-stack `#(,(l2s-label ':fn1) ,(l2s-assign 'g 2) ,(l2s-assign 'eax 'g)) -32)
-      `#(,(l2s-label ':fn1)
-         ,(l2s-aop 'esp '-= 32)
-         ,(l2s-assign 'g 2)
-         ,(l2s-assign 'eax 'g)
+(test (fix-stack `#(,(l2s-assign 't 5) ,(l2s-assign 'eax 't) ,(l2s-return)) -32)
+      `#(,(l2s-aop 'esp '-= 32)
+         ,(l2s-assign 't 5)
+         ,(l2s-assign 'eax 't)
+         ,(l2s-aop 'esp '+= 32)
+         ,(l2s-return)
          ,(l2s-aop 'esp '+= 32)))
 
 (printf "tests completed~n")
