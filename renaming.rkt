@@ -8,10 +8,6 @@
 (require (file "utils.rkt"))
 (require (file "types.rkt"))
 
-;; TODO: dict-override! does something very, very wrong
-;;       fix it to not go up into previous decs
-;;       add tests first
-
 ;;; renaming always does function labels first
 
 ;;; where possible, the renaming mechanism clears up any
@@ -378,7 +374,7 @@
                   (if old-val
                       (dict-override! varmap id (λ () old-val))
                       (dict-remove! varmap id))
-                  (l5e-let new-id new-binding new-body))]
+                  (l5e-letrec new-id new-binding new-body))]
     [l5e-if (test then else)
             (let ([new-test (rename-L5expr-traverse test varfn varmap)]
                   [new-then (rename-L5expr-traverse then varfn varmap)]

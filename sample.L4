@@ -1,0 +1,299 @@
+((let ((v1 (make-closure :l5clj_0 0)))
+   (let ((v2 1))
+     (let ((v3 0))
+       (let ((v5 (make-closure :l5clj_1 (new-tuple v2 v3))))
+         (let ((v8 (make-closure :l5clj_2 (new-tuple v2 v3))))
+           (let ((v11 (make-closure :l5clj_3 (new-tuple v2 v3))))
+             (let ((v12 (new-tuple)))
+               (let ((v14 (make-closure :l5clj_4 0)))
+                 (let ((v16 (make-closure :l5clj_5 0)))
+                   (let ((v17 (new-tuple)))
+                     (let ((v20 (make-closure :l5clj_6 0)))
+                       (let ((v22 (make-closure :l5clj_7 0)))
+                         (let ((v24 (make-closure :l5clj_8 0)))
+                           (let ((v26 (make-closure :l5clj_9 0)))
+                             (let ((recvar_0 (new-tuple 0)))
+                               (begin
+                                 (aset
+                                  recvar_0
+                                  0
+                                  (make-closure
+                                   :l5clj_10
+                                   (new-tuple recvar_0 v24 v26)))
+                                 (let ((recvar_1 (new-tuple 0)))
+                                   (begin
+                                     (aset
+                                      recvar_1
+                                      0
+                                      (make-closure
+                                       :l5clj_11
+                                       (new-tuple recvar_1 v22 v24 v26)))
+                                     (let ((v36
+                                            (make-closure
+                                             :l5clj_12
+                                             (new-tuple recvar_1 v17 v20))))
+                                       (let ((v40
+                                              (make-closure
+                                               :l5clj_13
+                                               (new-tuple recvar_1 v1))))
+                                         (let ((v44
+                                                (make-closure
+                                                 :l5clj_15
+                                                 (new-tuple v17 v20))))
+                                           (let ((v49
+                                                  (make-closure
+                                                   :l5clj_17
+                                                   (new-tuple
+                                                    recvar_1
+                                                    v1
+                                                    v17
+                                                    v20))))
+                                             (let ((recvar_3 (new-tuple 0)))
+                                               (begin
+                                                 (aset
+                                                  recvar_3
+                                                  0
+                                                  (make-closure
+                                                   :l5clj_18
+                                                   (new-tuple
+                                                    recvar_3
+                                                    v12
+                                                    v14
+                                                    v22
+                                                    v24
+                                                    v26)))
+                                                 (let ((recvar_4
+                                                        (new-tuple 0)))
+                                                   (begin
+                                                     (aset
+                                                      recvar_4
+                                                      0
+                                                      (make-closure
+                                                       :l5clj_19
+                                                       (new-tuple
+                                                        recvar_4
+                                                        v11
+                                                        v2
+                                                        v22
+                                                        v24
+                                                        v26
+                                                        v3
+                                                        v8)))
+                                                     (let ((v58
+                                                            (make-closure
+                                                             :l5clj_20
+                                                             (new-tuple
+                                                              recvar_4
+                                                              v8))))
+                                                       (let ((v61
+                                                              (make-closure
+                                                               :l5clj_21
+                                                               (new-tuple
+                                                                v58))))
+                                                         ((closure-proc v61)
+                                                          (closure-vars v61)
+                                                          ((closure-proc v1)
+                                                           (closure-vars v1)
+                                                           14)
+                                                          14)))))))))))))))))))))))))))))
+ (:l5clj_0 (frees v0) v0)
+ (:l5clj_1
+  (frees v4)
+  (let ((v3 (aref frees 1))) (let ((v2 (aref frees 0))) (if (= v2 v4) v3 v2))))
+ (:l5clj_10
+  (frees v28)
+  (let ((v26 (aref frees 2)))
+    (let ((v24 (aref frees 1)))
+      (let ((recvar_0 (aref frees 0)))
+        (if ((closure-proc v26) (closure-vars v26) v28)
+          0
+          (+
+           1
+           ((closure-proc (aref recvar_0 0))
+            (closure-vars (aref recvar_0 0))
+            ((closure-proc v24) (closure-vars v24) v28))))))))
+ (:l5clj_11
+  (frees extra)
+  (let ((v33 (aref extra 3)))
+    (let ((v32 (aref extra 2)))
+      (let ((v31 (aref extra 1)))
+        (let ((v30 (aref extra 0)))
+          (let ((v26 (aref frees 3)))
+            (let ((v24 (aref frees 2)))
+              (let ((v22 (aref frees 1)))
+                (let ((recvar_1 (aref frees 0)))
+                  (if ((closure-proc v26) (closure-vars v26) v33)
+                    v32
+                    ((closure-proc v31)
+                     (closure-vars v31)
+                     ((closure-proc v30)
+                      (closure-vars v30)
+                      ((closure-proc v22) (closure-vars v22) v33))
+                     ((closure-proc (aref recvar_1 0))
+                      (closure-vars (aref recvar_1 0))
+                      (new-tuple
+                       v30
+                       v31
+                       v32
+                       ((closure-proc v24) (closure-vars v24) v33))))))))))))))
+ (:l5clj_12
+  (frees v34 v35)
+  (let ((v20 (aref frees 2)))
+    (let ((v17 (aref frees 1)))
+      (let ((recvar_1 (aref frees 0)))
+        ((closure-proc (aref recvar_1 0))
+         (closure-vars (aref recvar_1 0))
+         (new-tuple v34 v20 v17 v35))))))
+ (:l5clj_13
+  (frees extra)
+  (let ((v39 (aref extra 2)))
+    (let ((v38 (aref extra 1)))
+      (let ((v37 (aref extra 0)))
+        (let ((v1 (aref frees 1)))
+          (let ((recvar_1 (aref frees 0)))
+            ((closure-proc (aref recvar_1 0))
+             (closure-vars (aref recvar_1 0))
+             (new-tuple v1 v37 v38 v39))))))))
+ (:l5clj_14
+  (frees v43)
+  (let ((v41 (aref frees 3)))
+    (let ((v20 (aref frees 2)))
+      (let ((v17 (aref frees 1)))
+        (let ((recvar_2 (aref frees 0)))
+          (if (<= (alen v41) v43)
+            v17
+            ((closure-proc v20)
+             (closure-vars v20)
+             (aref v41 v43)
+             ((closure-proc (aref recvar_2 0))
+              (closure-vars (aref recvar_2 0))
+              (+ 1 v43)))))))))
+ (:l5clj_15
+  (frees v41)
+  (let ((v20 (aref frees 1)))
+    (let ((v17 (aref frees 0)))
+      (let ((recvar_2 (new-tuple 0)))
+        (begin
+          (aset
+           recvar_2
+           0
+           (make-closure :l5clj_14 (new-tuple recvar_2 v17 v20 v41)))
+          ((closure-proc (aref recvar_2 0))
+           (closure-vars (aref recvar_2 0))
+           0))))))
+ (:l5clj_16
+  (frees v47 v48)
+  (let ((v45 (aref frees 1)))
+    (let ((v20 (aref frees 0)))
+      (if ((closure-proc v45) (closure-vars v45) v47)
+        ((closure-proc v20) (closure-vars v20) v47 v48)
+        v48))))
+ (:l5clj_17
+  (frees v45 v46)
+  (let ((v20 (aref frees 3)))
+    (let ((v17 (aref frees 2)))
+      (let ((v1 (aref frees 1)))
+        (let ((recvar_1 (aref frees 0)))
+          ((closure-proc (aref recvar_1 0))
+           (closure-vars (aref recvar_1 0))
+           (new-tuple
+            v1
+            (make-closure :l5clj_16 (new-tuple v20 v45))
+            v17
+            v46)))))))
+ (:l5clj_18
+  (frees v51 v52)
+  (let ((v26 (aref frees 5)))
+    (let ((v24 (aref frees 4)))
+      (let ((v22 (aref frees 3)))
+        (let ((v14 (aref frees 2)))
+          (let ((v12 (aref frees 1)))
+            (let ((recvar_3 (aref frees 0)))
+              (if ((closure-proc v26) (closure-vars v26) v52)
+                v12
+                (if ((closure-proc v51)
+                     (closure-vars v51)
+                     ((closure-proc v22) (closure-vars v22) v52))
+                  ((closure-proc v14)
+                   (closure-vars v14)
+                   ((closure-proc v22) (closure-vars v22) v52))
+                  ((closure-proc (aref recvar_3 0))
+                   (closure-vars (aref recvar_3 0))
+                   v51
+                   ((closure-proc v24) (closure-vars v24) v52)))))))))))
+ (:l5clj_19
+  (frees v54 v55)
+  (let ((v8 (aref frees 7)))
+    (let ((v3 (aref frees 6)))
+      (let ((v26 (aref frees 5)))
+        (let ((v24 (aref frees 4)))
+          (let ((v22 (aref frees 3)))
+            (let ((v2 (aref frees 2)))
+              (let ((v11 (aref frees 1)))
+                (let ((recvar_4 (aref frees 0)))
+                  (if ((closure-proc v8)
+                       (closure-vars v8)
+                       ((closure-proc v26) (closure-vars v26) v54)
+                       ((closure-proc v26) (closure-vars v26) v55))
+                    v2
+                    (if ((closure-proc v11)
+                         (closure-vars v11)
+                         ((closure-proc v26) (closure-vars v26) v54)
+                         ((closure-proc v26) (closure-vars v26) v55))
+                      v3
+                      ((closure-proc v8)
+                       (closure-vars v8)
+                       (if ((closure-proc v8)
+                            (closure-vars v8)
+                            (number?
+                             ((closure-proc v22) (closure-vars v22) v54))
+                            (number?
+                             ((closure-proc v22) (closure-vars v22) v55)))
+                         (=
+                          ((closure-proc v22) (closure-vars v22) v54)
+                          ((closure-proc v22) (closure-vars v22) v55))
+                         (if ((closure-proc v8)
+                              (closure-vars v8)
+                              (a? ((closure-proc v22) (closure-vars v22) v54))
+                              (a? ((closure-proc v22) (closure-vars v22) v55)))
+                           ((closure-proc (aref recvar_4 0))
+                            (closure-vars (aref recvar_4 0))
+                            ((closure-proc v22) (closure-vars v22) v54)
+                            ((closure-proc v22) (closure-vars v22) v55))
+                           v3))
+                       ((closure-proc (aref recvar_4 0))
+                        (closure-vars (aref recvar_4 0))
+                        ((closure-proc v24) (closure-vars v24) v54)
+                        ((closure-proc v24)
+                         (closure-vars v24)
+                         v55))))))))))))))
+ (:l5clj_2
+  (frees v6 v7)
+  (let ((v3 (aref frees 1)))
+    (let ((v2 (aref frees 0))) (if (= v3 v6) v3 (if (= v3 v7) v3 v2)))))
+ (:l5clj_20
+  (frees v56 v57)
+  (let ((v8 (aref frees 1)))
+    (let ((recvar_4 (aref frees 0)))
+      (if ((closure-proc v8) (closure-vars v8) (number? v56) (number? v57))
+        (= v56 v57)
+        ((closure-proc (aref recvar_4 0))
+         (closure-vars (aref recvar_4 0))
+         v56
+         v57)))))
+ (:l5clj_21
+  (frees v59 v60)
+  (let ((v58 (aref frees 0)))
+    (if ((closure-proc v58) (closure-vars v58) v59 v60)
+      (print 1)
+      (begin (print v59) (print v60)))))
+ (:l5clj_3
+  (frees v9 v10)
+  (let ((v3 (aref frees 1)))
+    (let ((v2 (aref frees 0))) (if (= v3 v9) (if (= v3 v10) v3 v2) v2))))
+ (:l5clj_4 (frees v13) (new-tuple v13 (new-tuple)))
+ (:l5clj_5 (frees v15) (aref v15 0))
+ (:l5clj_6 (frees v18 v19) (new-tuple v18 v19))
+ (:l5clj_7 (frees v21) (aref v21 0))
+ (:l5clj_8 (frees v23) (aref v23 1))
+ (:l5clj_9 (frees v25) (= 0 (alen v25))))
