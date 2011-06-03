@@ -138,7 +138,7 @@
 
 (define-with-contract (cljmap-getall m)
   (cljmap? . -> . (listof Closure?))
-  (hash-values m))
+  (map cdr (alphabetize (hash->list m))))
 
 (define-with-contract (cljmap-set! m i clj)
   (cljmap? label? Closure? . -> . void?)
@@ -226,9 +226,9 @@
     [l5e-letrec (id binding body)
                 (error 'L5 "letrec not eliminated")]
     [l5e-if (test then else)
-            (l5e-let (lambda-lift-traverse test cljs lblfn)
-                     (lambda-lift-traverse then cljs lblfn)
-                     (lambda-lift-traverse else cljs lblfn))]
+            (l5e-if (lambda-lift-traverse test cljs lblfn)
+                    (lambda-lift-traverse then cljs lblfn)
+                    (lambda-lift-traverse else cljs lblfn))]
     [l5e-newtuple (args)
                   (l5e-newtuple (map (λ (arg) (lambda-lift-traverse arg cljs lblfn)) args))]
     [l5e-begin (fst snd)

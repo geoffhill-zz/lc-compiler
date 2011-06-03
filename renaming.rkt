@@ -8,6 +8,10 @@
 (require (file "utils.rkt"))
 (require (file "types.rkt"))
 
+;; TODO: dict-override! does something very, very wrong
+;;       fix it to not go up into previous decs
+;;       add tests first
+
 ;;; renaming always does function labels first
 
 ;;; where possible, the renaming mechanism clears up any
@@ -20,6 +24,11 @@
    'dict?
    (hash/c symbol? symbol? #:immutable #f #:flat? #t)))
 
+;; dictionary reference
+(define-with-contract (dict-ref m k)
+  (dict? symbol? . -> . (or/c symbol? false?))
+  (hash-ref m k #f))
+
 ;; dictionary extension, for same-scope renaming
 (define-with-contract (dict-extend! m k v-thunk)
   (dict? symbol? (-> symbol?) . -> . symbol?)
@@ -28,7 +37,14 @@
         (hash-set! m k v)
         v)))
 
+;; dictionary removal
+(define-with-contract (dict-remove! m k)
+  (dict? symbol? . -> . void?)
+  (hash-remove! m k)
+  (void))
+
 ;; dictionary overriding, for inner-scope renaming
+;; while traversing, always remember to set it back to its old value
 (define-with-contract (dict-override! m k v-thunk)
   (dict? symbol? (-> symbol?) . -> . symbol?)
   (let ([v (v-thunk)])
@@ -213,8 +229,12 @@
   (type-case L3expr expr
     [l3e-let (id binding body)
              (let ([new-binding (rename-L3term binding lblfn varfn lblmap varmap)]
+                   [old-val (dict-ref varmap id)]
                    [new-id (dict-override! varmap id varfn)]
                    [new-body (rename-L3expr body lblfn varfn lblmap varmap)])
+               (if old-val
+                   (dict-override! varmap id (λ () old-val))
+                   (dict-remove! varmap id))
                (l3e-let new-id new-binding new-body))]
     [l3e-if (test then else)
             (let ([new-test (replace test)]
@@ -256,8 +276,6 @@
 ;;; L4 RENAMING
 ;;;
 
-
-
 (define L4-lbl-prefix ':L)
 (define L4-var-prefix 'v)
 
@@ -291,8 +309,12 @@
   (type-case L4expr expr
     [l4e-let (id binding body)
              (let ([new-binding (rename-L4expr binding lblfn varfn lblmap varmap)]
+                   [old-val (dict-ref varmap id)]
                    [new-id (dict-override! varmap id varfn)]
                    [new-body (rename-L4expr body lblfn varfn lblmap varmap)])
+               (if old-val
+                   (dict-override! varmap id (λ () old-val))
+                   (dict-remove! varmap id))
                (l4e-let new-id new-binding new-body))]
     [l4e-if (test then else)
             (let ([new-test (rename-L4expr test lblfn varfn lblmap varmap)]
@@ -300,16 +322,81 @@
                   [new-else (rename-L4expr else lblfn varfn lblmap varmap)])
               (l4e-if new-test new-then new-else))]
     [l4e-begin (fst snd)
-            (let ([new-fst (rename-L4expr fst lblfn varfn lblmap varmap)]
-                  [new-snd (rename-L4expr snd lblfn varfn lblmap varmap)])
-              (l4e-begin new-fst new-snd))]
+               (let ([new-fst (rename-L4expr fst lblfn varfn lblmap varmap)]
+                     [new-snd (rename-L4expr snd lblfn varfn lblmap varmap)])
+                 (l4e-begin new-fst new-snd))]
     [l4e-app (fn args)
-            (let ([new-fn (rename-L4expr fn lblfn varfn lblmap varmap)]
-                  [new-args (for/list ([arg args])
-                              (rename-L4expr arg lblfn varfn lblmap varmap))])
-              (l4e-app new-fn new-args))]
+             (let ([new-fn (rename-L4expr fn lblfn varfn lblmap varmap)]
+                   [new-args (for/list ([arg args])
+                               (rename-L4expr arg lblfn varfn lblmap varmap))])
+               (l4e-app new-fn new-args))]
     [l4e-v (v)
            (l4e-v (cond
                     [(label? v) (dict-extend! lblmap v lblfn)]
                     [(or (num? v) (L4-builtin? v)) v]
                     [else (dict-extend! varmap v varfn)]))]))
+
+;;;
+;;; L5 RENAMING
+;;;
+
+(define L5-var-prefix 'v)
+
+(define-with-contract (rename-L5expr expr)
+  (L5expr? . -> . L5expr?)
+  (rename-L5expr-traverse expr (make-counter L5-var-prefix) (dict)))
+
+(define-with-contract (rename-L5expr-traverse expr varfn varmap)
+  (L5expr? (-> symbol?) dict? . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (let ([old-vals (for/list ([arg args])
+                                  (dict-ref varmap arg))]
+                      [new-args (for/list ([arg args])
+                                  (dict-override! varmap arg varfn))]
+                      [new-body (rename-L5expr-traverse body varfn varmap)])
+                  (for ([arg args]
+                        [old-val old-vals])
+                    (if old-val
+                        (dict-override! varmap arg (λ () old-val))
+                        (dict-remove! varmap arg)))
+                  (l5e-lambda new-args new-body))]
+    [l5e-let (id binding body)
+             (let ([new-binding (rename-L5expr-traverse binding varfn varmap)]
+                   [old-val (dict-ref varmap id)]
+                   [new-id (dict-override! varmap id varfn)]
+                   [new-body (rename-L5expr-traverse body varfn varmap)])
+               (if old-val
+                   (dict-override! varmap id (λ () old-val))
+                   (dict-remove! varmap id))
+               (l5e-let new-id new-binding new-body))]
+    [l5e-letrec (id binding body)
+                (let ([old-val (dict-ref varmap id)]
+                      [new-id (dict-override! varmap id varfn)]
+                      [new-binding (rename-L5expr-traverse binding varfn varmap)]
+                      [new-body (rename-L5expr-traverse body varfn varmap)])
+                  (if old-val
+                      (dict-override! varmap id (λ () old-val))
+                      (dict-remove! varmap id))
+                  (l5e-let new-id new-binding new-body))]
+    [l5e-if (test then else)
+            (let ([new-test (rename-L5expr-traverse test varfn varmap)]
+                  [new-then (rename-L5expr-traverse then varfn varmap)]
+                  [new-else (rename-L5expr-traverse else varfn varmap)])
+              (l5e-if new-test new-then new-else))]
+    [l5e-newtuple (args)
+                  (let ([new-args (for/list ([arg args])
+                                    (rename-L5expr-traverse arg varfn varmap))])
+                    (l5e-newtuple new-args))]
+    [l5e-begin (fst snd)
+               (let ([new-fst (rename-L5expr-traverse fst varfn varmap)]
+                     [new-snd (rename-L5expr-traverse snd varfn varmap)])
+                 (l5e-begin new-fst new-snd))]
+    [l5e-app (fn args)
+             (let ([new-fn (rename-L5expr-traverse fn varfn varmap)]
+                   [new-args (for/list ([arg args])
+                               (rename-L5expr-traverse arg varfn varmap))])
+               (l5e-app new-fn new-args))]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) (l5e-var (dict-extend! varmap var varfn))]
+    [l5e-num (num) expr]))
