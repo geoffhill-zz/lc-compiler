@@ -258,9 +258,9 @@
                    (powerset (set-union out (kill stmt)))
                    ; all var combos of the gen set of first stmt
                    (if (= i 0) (powerset (gen stmt)) (set))
-                   ; all regs that cannot be result of a shift for sop stmt
-                   (if (l2s-sop? stmt)
-                       (pairs (l2s-sop-lhs stmt)
+                   ; all regs that cannot be arg of a shift for sop stmt
+                   (if (and (l2s-sop? stmt) (L2-x? (l2s-sop-rhs stmt)))
+                       (pairs (l2s-sop-rhs stmt)
                               (set-subtract used-regs valid-sop-regs))
                        (set))
                    ; all regs that cannot be result of a compare for cmp stmt
@@ -565,16 +565,16 @@
 
 (define-with-contract (main/spill port)
   (input-port? . -> . void?)
-  (let* ([fn (build-l2fn (read port))]
-         [spilled (spill fn (read port) (read port) (read port))]
+  (let* ([stmts (map build-L2stmt (read port))]
+         [spilled (spill (read port) (read port) (read port) (read port))]
          [lstform (format-L2fn spilled)])
     (pretty-write lstform)
     (void)))
 
 (define-with-contract (main/liveness port)
   (input-port? . -> . void?)
-  (let* ([fn (build-l2fn (read port))]
-         [base (build-l2reg-base fn)]
+  (let* ([stmts (map build-L2stmt (read port))]
+         [base (build-l2reg-base stmts)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]
          [ins (l2reg-liveness-ins liveness)]
@@ -587,8 +587,8 @@
 
 (define-with-contract (main/graph port)
   (input-port? . -> . void?)
-  (let* ([fn (build-l2fn (read port))]
-         [base (build-l2reg-base fn)]
+  (let* ([stmts (map build-L2stmt (read port))]
+         [base (build-l2reg-base stmts)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]
          [graph (build-l2reg-graph liveness)]
