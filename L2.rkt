@@ -78,24 +78,22 @@
 ;;; L2REG-BASE GENERATION
 ;;;
 
-;; creates an L2reg-base from an L2fn
-(define-with-contract (build-l2reg-base fn)
-  (L2fn? . -> . l2reg-base?)
-  (type-case L2fn fn
-    [l2fn (stmts)
-          (let ([vecstmts (make-vector (length stmts))])
-            (let loop ([stmts stmts]
-                       [index 0]
-                       [lblmap (labelmap)])
-              (if (null? stmts)
-                  (l2reg-base vecstmts lblmap)
-                  (let ([stmt (car stmts)])
-                    (vector-set! vecstmts index stmt)
-                    (loop (cdr stmts)
-                          (+ index 1)
-                          (if (l2s-label? stmt)
-                              (hash-set lblmap (l2s-label-lbl stmt) index)
-                              lblmap))))))]))
+;; creates an L2reg-base
+(define-with-contract (build-l2reg-base stmts)
+  ((listof L2stmt?) . -> . l2reg-base?)
+  (let ([vecstmts (make-vector (length stmts))])
+    (let loop ([stmts stmts]
+               [index 0]
+               [lblmap (labelmap)])
+      (if (null? stmts)
+          (l2reg-base vecstmts lblmap)
+          (let ([stmt (car stmts)])
+            (vector-set! vecstmts index stmt)
+            (loop (cdr stmts)
+                  (+ index 1)
+                  (if (l2s-label? stmt)
+                      (hash-set lblmap (l2s-label-lbl stmt) index)
+                      lblmap)))))))
 
 ;;;
 ;;; L2REG-SUCC GENERATION
@@ -206,9 +204,10 @@
 ;; creates an L2reg-graph from L2reg-liveness
 (define-with-contract (build-l2reg-graph l2fn)
   (l2reg-liveness? . -> . l2reg-graph?)
-  (let ([nodes (graph-nodes l2fn)]
+  (let ([stmts (l2reg-liveness-stmts l2fn)]
+        [nodes (graph-nodes l2fn)]
         [edges (graph-edges l2fn)])
-    (l2reg-graph (l2reg-liveness-stmts l2fn) nodes edges)))
+    (l2reg-graph stmts nodes edges)))
 
 ;; register sets for graph generation
 (define all-regs (set 'eax 'ebx 'ecx 'edx 'edi 'esi 'ebp 'esp))
@@ -280,7 +279,7 @@
 ;;; L3FN-COLOR GENERATION
 ;;;
 
-(define spill-prefix '____spilled)
+(define L2-spill-prefix 'spill)
 
 ;; creates an L2reg-color from L2reg-graph
 (define-with-contract (build-l2reg-color l2fn)
@@ -295,11 +294,10 @@
       (if coloring
           (l2reg-color (fix-stack stmts offset) coloring)
           (if (set-empty? spillables)
-              (error 'l2 "no variables left to spill")
+              (error 'L2 "no variables left to spill")
               (let-values ([(next rest) (choose-spill-var spillables nodes edges)])
-                (let* ([fn (build-L2fn (vector->list
-                                        (vector-map format-L2stmt stmts)))]
-                       [spilled-fn (spill fn next (- offset 4) spill-prefix)]
+                (let* ([stmt-lst (vector->list (vector-map format-L2stmt stmts))]
+                       [spilled-fn (spill stmt-lst next (- offset 4) L2-spill-prefix)]
                        [new-base (build-l2reg-base spilled-fn)]
                        [new-succ (build-l2reg-succ new-base)]
                        [new-liveness (build-l2reg-liveness new-succ)]
@@ -308,12 +306,12 @@
 
 ;; spills a variable in an L2fn
 (define-with-contract (spill fn name offset prefix)
-  (L2fn? L2-x? n4? L2-x? . -> . L2fn?)
+  ((listof L2stmt?) L2-x? n4? L2-x? . -> . L2fn?)
   (let loop ([stmts (l2fn-stmts fn)]
              [temp-count 0]
              [accum '()])
     (if (null? stmts)
-        (l2fn (reverse accum))
+        (reverse accum)
         (let* ([stmt (car stmts)]
                [temp (temp-var prefix temp-count)]
                [in-gen (set-member? (gen stmt) name)]
@@ -376,25 +374,21 @@
 
 ;; add statements to fix stack alignment
 ;; ensures that labeled functions stay labeled
-;; TODO: fix possible multiple stack decrement bug (check interpreter)
-;; TODO: fix addition of esp to every return/tail-call
 (define-with-contract (fix-stack stmts offset)
-  ((vectorof L2stmt?) integer? . -> . (vectorof L2stmt?))
-  (if (zero? offset)
-      stmts
-      (let* ([pos-offset (- 0 offset)]
-             [len (+ (vector-length stmts) 2)]
-             [newstmts (make-vector len)])
-        (if (l2s-label? (vector-ref stmts 0))
-            (begin
-              (vector-set! newstmts 0 (vector-ref stmts 0))
-              (vector-set! newstmts 1 (l2s-aop 'esp '-= pos-offset))
-              (vector-copy! newstmts 2 stmts 1))
-            (begin
-              (vector-set! newstmts 0 (l2s-aop 'esp '-= pos-offset))
-              (vector-copy! newstmts 1 stmts)))
-        (vector-set! newstmts (- len 1) (l2s-aop 'esp '+= pos-offset))
-        newstmts)))
+  ((vectorof L2stmt?) nonpositive-n4? . -> . (vectorof L2stmt?))
+  (let ([pos-offset (- 0 offset)])
+    (if (zero? offset)
+        stmts
+        (let loop ([i (vector-length stmts)]
+                   [accum `()])
+          (if (zero? i)
+              (list->vector `(,(l2s-aop 'esp '-= pos-offset) ,@accum))
+              (let* ([stmt (vector-ref stmts (- i 1))]
+                     [new-stmts (type-case L2stmt stmt
+                                  [l2s-tcall (dst) `(,(l2s-aop 'esp '+= pos-offset) ,stmt)]
+                                  [l2s-return () `(,(l2s-aop 'esp '+= pos-offset) ,stmt)]
+                                  [else `(,stmt)])])
+                (loop (- i 1) (append new-stmts accum))))))))
 
 ;; create a color mapping from an interference graph
 (define-with-contract (color nodes edges)
@@ -459,6 +453,8 @@
 ;;; L2 -> L1 COMPILATION
 ;;;
 
+(define L2-svar-prefix 's)
+
 ;; compile an L2prog into an L1prog
 (define-with-contract (compile-L2prog prog)
   (L2prog? . -> . L1prog?)
@@ -471,18 +467,30 @@
 ;; compile an L2fn into an L1fn
 (define-with-contract (compile-L2fn fn)
   (L2fn? . -> . L1fn?)
-  (let* ([base (build-l2reg-base fn)]
+  (let* ([varfn (make-counter L2-svar-prefix)]
+         [edi-var (varfn)]
+         [esi-var (varfn)]
+         [stmts (append `(,(l2s-assign edi-var 'edi)
+                         ,(l2s-assign esi-var 'esi))
+                       (type-case L2fn fn
+                         [l2mainfn (stmts) stmts]
+                         [l2fn (lbl stmts) stmts])
+                       `(,(l2s-assign edi-var 'edi)
+                         ,(l2s-assign esi-var 'esi)))]
+         [base (build-l2reg-base stmts)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]
          [graph (build-l2reg-graph liveness)]
          [color (build-l2reg-color graph)]
-         [coloring (l2reg-color-coloring color)])
-    (l1fn
-     (map compile-L2stmt
-          (vector->list
-           (vector-map
-            (λ (stmt) (replace-stmt-vars stmt (λ (x) (hash-ref coloring x x))))
-            (l2reg-color-stmts color)))))))
+         [coloring (l2reg-color-coloring color)]
+         [new-stmts (map compile-L2stmt
+                         (vector->list
+                          (vector-map
+                           (λ (stmt) (replace-stmt-vars stmt (λ (x) (hash-ref coloring x x))))
+                           (l2reg-color-stmts color))))])
+    (type-case L2fn fn
+      [l2mainfn (stmts) (l1mainfn new-stmts)]
+      [l2fn (lbl stmts) (l1fn lbl new-stmts)])))
 
 ;; compile an L2stmt into an L1stmt
 (define-with-contract (compile-L2stmt stmt)
@@ -523,7 +531,7 @@
 
 (define-with-contract (main/spill port)
   (input-port? . -> . void?)
-  (let* ([fn (build-L2fn (read port))]
+  (let* ([fn (build-l2fn (read port))]
          [spilled (spill fn (read port) (read port) (read port))]
          [lstform (format-L2fn spilled)])
     (pretty-write lstform)
@@ -531,7 +539,7 @@
 
 (define-with-contract (main/liveness port)
   (input-port? . -> . void?)
-  (let* ([fn (build-L2fn (read port))]
+  (let* ([fn (build-l2fn (read port))]
          [base (build-l2reg-base fn)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]
@@ -545,7 +553,7 @@
 
 (define-with-contract (main/graph port)
   (input-port? . -> . void?)
-  (let* ([fn (build-L2fn (read port))]
+  (let* ([fn (build-l2fn (read port))]
          [base (build-l2reg-base fn)]
          [more (build-l2reg-succ base)]
          [liveness (build-l2reg-liveness more)]

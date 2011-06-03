@@ -44,14 +44,14 @@
                 (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
                 (fprintf out "  pushal~n")
                 (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
-                (map (λ (stmt) (compile-L1stmt stmt out)) stmts)
+                (map (λ (stmt) (compile-L1stmt stmt out lblfn)) stmts)
                 (fprintf out "  popal~n")
                 (fprintf out "  leave~n")
                 (fprintf out "  ret~n"))]
     [l1fn (lbl stmts)
           (begin
             (format "~n~a:~n" (asm-s lbl))
-            (map (λ (stmt) (compile-L1stmt stmt out)) stmts))])
+            (map (λ (stmt) (compile-L1stmt stmt out lblfn)) stmts))])
   (void))
 
 (define-with-contract (compile-L1stmt stmt out lblfn)
