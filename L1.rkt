@@ -29,7 +29,8 @@
                 (fprintf out ".globl very_first_fn~n")
                 ;(fprintf out ".type very_first_fn, @function~n~n")
                 (compile-L1fn main out lblfn)
-                (map (λ (fn) (compile-L1fn fn out lblfn)) others)
+                (for/list ([fn others])
+                  (compile-L1fn fn out lblfn))
                 ;(fprintf out "~n.size very_first_fn, .-very_first_fn~n")
                 ;(fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
                 (get-output-string out))])))
@@ -44,14 +45,16 @@
                 (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
                 (fprintf out "  pushal~n")
                 (fprintf out (format "  movl ~a, ~a~n" (asm-s 'esp) (asm-s 'ebp)))
-                (map (λ (stmt) (compile-L1stmt stmt out lblfn)) stmts)
+                (for/list ([stmt stmts])
+                  (compile-L1stmt stmt out lblfn))
                 (fprintf out "  popal~n")
                 (fprintf out "  leave~n")
                 (fprintf out "  ret~n"))]
     [l1fn (lbl stmts)
           (begin
             (format "~n~a:~n" (asm-s lbl))
-            (map (λ (stmt) (compile-L1stmt stmt out lblfn)) stmts))])
+            (for/list ([stmt stmts])
+              (compile-L1stmt stmt out lblfn)))])
   (void))
 
 (define-with-contract (compile-L1stmt stmt out lblfn)
@@ -106,7 +109,7 @@
                              (case op [(<) "setl"] [(<=) "setle"] [(=) "sete"]) (asm-s-lsb lhs)
                              (asm-s 1) (asm-s lhs))])]
     [l1s-label (lbl)
-                (format "~n~a:~n" (asm-s lbl))]
+                (format "  ~a:~n" (asm-s lbl))]
     [l1s-goto (lbl)
                (format "  jmp ~a~n" (asm-s lbl))]
     [l1s-cjump (c1 op c2 lbl1 lbl2)
