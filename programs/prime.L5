@@ -1,0 +1,24 @@
+(letrec ([divides (lambda (big small)
+                    (if (= big 0)
+                        1
+                        (if (< big 0)
+                            0
+                            (divides (- big small) small))))])
+  (letrec ([try_prime (lambda (x current)
+                        (if (< x 2)
+                            0
+                            (if (= x current)
+                                1
+                                (if (divides x current)
+                                    0
+                                    (try_prime x (+ current 1))))))])
+    (let ([prime (lambda (x) (try_prime x 2))])
+      (letrec ([find_prime (lambda (top bottom)
+                             (if (<= top bottom)
+                                 0
+                                 (if (prime bottom)
+                                     (begin
+                                       (print bottom)
+                                       (find_prime top (+ bottom 1)))
+                                     (find_prime top (+ bottom 1)))))])
+        (find_prime 100 1)))))
