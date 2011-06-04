@@ -134,13 +134,17 @@
      (build-L5expr (read port)))))
   (void))
 
+(define-with-contract (compile-LC src)
+  (list? . -> . string?)
+  (compile-L1prog
+   (compile-L2prog
+    (compile-L3prog
+     (compile-L4prog
+      (compile-L5expr
+       (build-L5expr src)))))))
+
 (define-with-contract (main/LC port)
   (input-port? . -> . void?)
   (display
-   (compile-L1prog
-    (compile-L2prog
-     (compile-L3prog
-      (compile-L4prog
-       (compile-L5expr
-        (build-L5expr (read port))))))))
+   (compile-LC (read port)))
   (void))
