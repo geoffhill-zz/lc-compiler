@@ -83,53 +83,46 @@
   (L3term? L3-x? (-> symbol?) (-> symbol?) . -> . (listof L2stmt?))
   (type-case L3term t
     [l3t-biop (op v1 v2)
-              (let ([tmp (varfn)])
-                (if (and (num? v1) (num? v2))
-                    (case op
-                      [(+) (list (l2s-assign dst (encode (+ v1 v2))))]
-                      [(-) (list (l2s-assign dst (encode (- v1 v2))))]
-                      [(*) (list (l2s-assign dst (encode (* v1 v2))))]
-                      [(<) (list (l2s-assign dst (encode (if (< v1 v2) 1 0))))]
-                      [(<=) (list (l2s-assign dst (encode (if (<= v1 v2) 1 0))))]
-                      [(=) (list (l2s-assign dst (encode (if (= v1 v2) 1 0))))])
-                    (case op
-                      [(+) (list (l2s-assign dst (encode v1))
-                                 (l2s-aop dst '+= (encode v2))
-                                 (l2s-aop dst '-= 1))]
-                      [(-) (list (l2s-assign dst (encode v1))
-                                 (l2s-aop dst '+= (encode v2))
-                                 (l2s-aop dst '+= 1))]
-                      [(*) (list (l2s-assign tmp (encode v1))
+              (if (and (num? v1) (num? v2))
+                  (case op
+                    [(+) (list (l2s-assign dst (encode (+ v1 v2))))]
+                    [(-) (list (l2s-assign dst (encode (- v1 v2))))]
+                    [(*) (list (l2s-assign dst (encode (* v1 v2))))]
+                    [(<) (list (l2s-assign dst (encode (if (< v1 v2) 1 0))))]
+                    [(<=) (list (l2s-assign dst (encode (if (<= v1 v2) 1 0))))]
+                    [(=) (list (l2s-assign dst (encode (if (= v1 v2) 1 0))))])
+                  (case op
+                    [(+) (list (l2s-assign dst (encode v1))
+                               (l2s-aop dst '+= (encode v2))
+                               (l2s-aop dst '-= 1))]
+                    [(-) (list (l2s-assign dst (encode v1))
+                               (l2s-aop dst '-= (encode v2))
+                               (l2s-aop dst '+= 1))]
+                    [(*) (let ([tmp (varfn)])
+                           (list (l2s-assign tmp (encode v1))
                                  (l2s-sop tmp '>>= 1)
                                  (l2s-assign dst (encode v2))
                                  (l2s-sop dst '>>= 1)
                                  (l2s-aop dst '*= tmp)
                                  (l2s-sop dst '<<= 1)
-                                 (l2s-aop dst '+= 1))]
-                      [(<) (list (l2s-cmp dst (encode v1) '< (encode v2))
-                                 (l2s-sop dst '<<= 1)
-                                 (l2s-aop dst '+= 1))]
-                      [(<=) (list (l2s-cmp dst (encode v1) '<= (encode v2))
-                                  (l2s-sop dst '<<= 1)
-                                  (l2s-aop dst '+= 1))]
-                      [(=) (list (l2s-cmp dst (encode v1) '= (encode v2))
-                                 (l2s-sop dst '<<= 1)
-                                 (l2s-aop dst '+= 1))])))]
+                                 (l2s-aop dst '+= 1)))]
+                    [(< <= =) (list (l2s-cmp dst (encode v1) op (encode v2))
+                                    (l2s-sop dst '<<= 1)
+                                    (l2s-aop dst '+= 1))]))]
     [l3t-pred (pred v)
               (if (num? v)
                   (case pred
-                    [(number?) (list (l2s-assign dst 1))]
-                    [(a?) (list (l2s-assign dst 0))])
+                    [(number?) (list (l2s-assign dst (encode 1)))]
+                    [(a?) (list (l2s-assign dst (encode 0)))])
                   (case pred
                     [(number?) (list (l2s-assign dst v)
                                      (l2s-aop dst '&= 1)
                                      (l2s-sop dst '<<= 1)
                                      (l2s-aop dst '+= 1))]
                     [(a?) (list (l2s-assign dst v)
-                                (l2s-aop dst '+= 1)
                                 (l2s-aop dst '&= 1)
-                                (l2s-sop dst '<<= 1)
-                                (l2s-aop dst '+= 1))]))]
+                                (l2s-aop dst '*= -2)
+                                (l2s-aop dst '+= 3))]))]
     [l3t-apply (fn args)
                `(,@(for/list ([arg args] [reg arg-regs])
                      (l2s-assign reg (encode arg)))
@@ -151,29 +144,35 @@
                           (list (l2s-assign dst 'eax))))]
     [l3t-aref (arr i)
               (let ([tmp (varfn)]
-                    [passlbl (lblfn)]
+                    [pass1lbl (lblfn)]
+                    [pass2lbl (lblfn)]
                     [faillbl (lblfn)])
                 (list (l2s-assign dst (encode i))
                       (l2s-sop dst '>>= 1)
                       (l2s-memget tmp (encode arr) 0)
-                      (l2s-cjump dst '< tmp passlbl faillbl)
+                      (l2s-cjump dst '< 0 faillbl pass1lbl)
                       (l2s-label faillbl)
                       (l2s-arrayerr 'eax (encode arr) (encode i))
-                      (l2s-label passlbl)
+                      (l2s-label pass1lbl)
+                      (l2s-cjump dst '< tmp pass2lbl faillbl)
+                      (l2s-label pass2lbl)
                       (l2s-sop dst '<<= 2)
                       (l2s-aop dst '+= arr)
                       (l2s-memget dst dst 4)))]
     [l3t-aset (arr i v)
               (let ([tmp (varfn)]
-                    [passlbl (lblfn)]
+                    [pass1lbl (lblfn)]
+                    [pass2lbl (lblfn)]
                     [faillbl (lblfn)])
                 (list (l2s-assign dst (encode i))
                       (l2s-sop dst '>>= 1)
                       (l2s-memget tmp (encode arr) 0)
-                      (l2s-cjump dst '< tmp passlbl faillbl)
+                      (l2s-cjump dst '< 0 faillbl pass1lbl)
                       (l2s-label faillbl)
                       (l2s-arrayerr 'eax (encode arr) (encode i))
-                      (l2s-label passlbl)
+                      (l2s-label pass1lbl)
+                      (l2s-cjump dst '< tmp pass2lbl faillbl)
+                      (l2s-label pass2lbl)
                       (l2s-sop dst '<<= 2)
                       (l2s-aop dst '+= arr)
                       (l2s-memset dst 4 (encode v))
@@ -216,5 +215,5 @@
                         (l2s-label-lbl snd)))
            (cdr stmts)
            stmts))]
-    [else (cons (first stmts)
+    [else (cons (first stmts)    ; 3+ stmts
                 (optimize-endjmp-stmts (rest stmts)))]))
