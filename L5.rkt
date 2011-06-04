@@ -178,10 +178,14 @@
 (define-with-contract (bif-clj bif)
   (L5-builtin? . -> . Closure?)
   (let* ([lbl (bif-lbl bif)]
+         [arity (bif-arity bif)]
          [varfn (make-counter 'arg)]
-         [args (for/list ([i (in-range (bif-arity bif))]) (varfn))]
+         [args (for/list ([i (in-range arity)]) (varfn))]
          [body (l5e-app (l5e-prim bif) (map l5e-var args))])
-    (closure lbl (cons freevar-tuple-name args) body)))
+    (if (arity . <= . 2)
+        (closure lbl `(,freevar-tuple-name ,@args) body)
+        (closure lbl `(,freevar-tuple-name ,multarg-tuple-name)
+                 (extract-tuple body args multarg-tuple-name)))))
 
 (define-with-contract (lambda-lift expr)
   (L5expr? . -> . (values L5expr? (listof Closure?)))
