@@ -15,7 +15,7 @@
 ;;; L1 -> x86 COMPILATION
 ;;;
 
-(define L1-jlbl-prefix ':j)
+(define L1-jlbl-prefix ':J)
 
 (define-with-contract (compile-L1prog prog)
   (L1prog? . -> . string?)
@@ -52,7 +52,7 @@
                 (fprintf out "  ret~n"))]
     [l1fn (lbl stmts)
           (begin
-            (format "~n~a:~n" (asm-s lbl))
+            (fprintf out (format "~n~a:~n" (asm-s lbl)))
             (for/list ([stmt stmts])
               (compile-L1stmt stmt out lblfn)))])
   (void))
