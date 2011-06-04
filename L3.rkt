@@ -202,18 +202,3 @@
   (if (num? s)
       (+ 1 (* s 2))
       s))
-
-;;;
-;;; EXTERNAL INTERFACE
-;;;
-
-(define-with-contract (main fname)
-  (string? . -> . void?)
-  (call-with-input-file fname main/compile))
-
-(define-with-contract (main/compile port)
-  (input-port? . -> . void?)
-  (pretty-write
-   (format-L2prog
-    (compile-L3prog
-     (build-L3prog (read port))))))

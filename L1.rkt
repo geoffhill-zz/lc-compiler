@@ -176,16 +176,3 @@
         [(ecx) "%cl"]
         [(edx) "%dl"])
       (asm-s s)))
-
-;; main function
-(define-with-contract (main fname)
-  (string? . -> . void?)
-  (call-with-input-file fname main/compile))
-
-(define-with-contract (main/compile port)
-  (input-port? . -> . void?)
-  (display
-   (compile-L1prog
-    (build-L1prog
-     (read port))))
-  (void))

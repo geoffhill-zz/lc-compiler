@@ -112,18 +112,3 @@
                        (l4e-let id expr (find (first todo)
                                               (fn-ctxt newdone (rest todo) ctxt)
                                               varfn)))))]))
-
-;;;
-;;; EXTERNAL INTERFACE
-;;;
-
-(define-with-contract (main fname)
-  (string? . -> . void?)
-  (call-with-input-file fname main/compile-L4))
-
-(define-with-contract (main/compile-L4 port)
-  (input-port? . -> . void?)
-  (pretty-write
-   (format-L3prog
-    (compile-L4prog
-     (build-L4prog (read port))))))

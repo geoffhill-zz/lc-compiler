@@ -354,18 +354,3 @@
     [l5e-prim (prim) (l4e-v prim)]
     [l5e-var (var) (l4e-v var)]
     [l5e-num (num) (l4e-v num)]))
-
-;;;
-;;; EXTERNAL INTERFACE
-;;;
-
-(define-with-contract (main fname)
-  (string? . -> . void?)
-  (call-with-input-file fname main/compile-L5))
-
-(define-with-contract (main/compile-L5 port)
-  (input-port? . -> . void?)
-  (pretty-write
-   (format-L4prog
-    (compile-L5expr
-     (build-L5expr (read port))))))
