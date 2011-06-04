@@ -17,7 +17,7 @@ EXEC="a.out"
 
 if [ -z "$1" ];
   then
-    echo "Usage: graph-test PROGRAM"
+    echo "Usage: MODE PROGRAM"
   else
     if [ "$ASSEMBLE" == "1" ]
       then
