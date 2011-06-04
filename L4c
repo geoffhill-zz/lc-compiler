@@ -1,4 +1,5 @@
 #!/bin/bash
 
+DIR=`dirname $0`
 COMMAND="L4"
-. driver.sh
+. "$DIR/driver.sh"
