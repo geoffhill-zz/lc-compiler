@@ -1,5 +1,7 @@
 #!/bin/bash
 
 DIR=`dirname $0`
+ASSEMBLE="1"
 COMMAND="L1"
 . "$DIR/driver.sh"
+

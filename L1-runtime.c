@@ -9,6 +9,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// cross-platform way to ensure runtime function names
+// are exactly this, with no leading underscore
+extern very_first_fn () asm ("very_first_fn");
+extern int l1_print () asm ("l1_print");
+extern void *l1_alloc () asm ("l1_alloc");
+extern int l1_arrayerr () asm ("l1_arrayerr");
+
 void print_content(void** in, int depth) {
   if (depth >= 4) {
     printf("...");

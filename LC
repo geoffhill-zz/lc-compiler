@@ -1,4 +1,7 @@
 #!/bin/bash
 
+DIR=`dirname $0`
 COMMAND="LC"
-. driver.sh
+ASSEMBLE="1"
+. "$DIR/driver.sh"
+

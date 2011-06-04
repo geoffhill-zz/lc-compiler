@@ -27,11 +27,11 @@
               (begin
                 (fprintf out ".text~n")
                 (fprintf out ".globl very_first_fn~n")
-                (fprintf out ".type very_first_fn, @function~n~n")
+                ;(fprintf out ".type very_first_fn, @function~n~n")
                 (compile-L1fn main out lblfn)
                 (map (λ (fn) (compile-L1fn fn out lblfn)) others)
-                (fprintf out "~n.size very_first_fn, .-very_first_fn~n")
-                (fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
+                ;(fprintf out "~n.size very_first_fn, .-very_first_fn~n")
+                ;(fprintf out ".section .note.GNU-stack,\"\",@progbits~n")
                 (get-output-string out))])))
 
 (define-with-contract (compile-L1fn fn out lblfn)
