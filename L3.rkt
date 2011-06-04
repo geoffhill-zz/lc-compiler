@@ -11,8 +11,6 @@
 (require (file "output.rkt"))
 (require (file "renaming.rkt"))
 
-;; TODO: move counter closures out of global for testing
-
 ;;;
 ;;; L3 -> L2 COMPILATION
 ;;;
@@ -20,7 +18,7 @@
 (define arg-regs '(ecx edx eax))
 (define L3-gvar-prefix 'g)
 (define L3-glbl-prefix ':h)
-(define L3-endlbl ':endofmain)
+(define L3-endlbl ':end_of_main)
 
 (define-type Context
   [ctxt-mainfn]
@@ -42,8 +40,8 @@
   (L3fn? (-> symbol?) (-> symbol?) . -> . L2fn?)
   (type-case L3fn fn
     [l3mainfn (body)
-              (l2mainfn (optimize-endjmp
-                         `(,@(compile-L3expr body (ctxt-mainfn) varfn lblfn)
+              (optimize-endjmp
+               (l2mainfn `(,@(compile-L3expr body (ctxt-mainfn) varfn lblfn)
                            ,(l2s-label L3-endlbl))))]
     [l3fn (lbl args body)
           (l2fn lbl
@@ -200,7 +198,11 @@
       (+ 1 (* s 2))
       s))
 
-(define-with-contract (optimize-endjmp stmts)
+(define-with-contract (optimize-endjmp fn)
+  (l2mainfn? . -> . l2mainfn?)
+  (l2mainfn (optimize-endjmp-stmts (l2mainfn-stmts fn))))
+
+(define-with-contract (optimize-endjmp-stmts stmts)
   ((listof L2stmt?) . -> . (listof L2stmt?))
   (cond
     [(null? stmts) stmts]        ; 0 stmts
@@ -210,7 +212,9 @@
            [snd (second stmts)])
        (if (and (l2s-goto? fst)
                 (l2s-label? snd)
-                (equal? (l2s-goto-lbl fst) (l2s-label-lbl snd)))
-           '()
+                (equal? (l2s-goto-lbl fst)
+                        (l2s-label-lbl snd)))
+           (cdr stmts)
            stmts))]
-    [else (cons (first stmts) (optimize-endjmp (rest stmts)))]))
+    [else (cons (first stmts)
+                (optimize-endjmp-stmts (rest stmts)))]))

@@ -94,4 +94,27 @@
 (test (build-L3expr 'z) (l3e-t (l3t-v 'z)))
 (test (build-L3expr ':lbl1) (l3e-t (l3t-v ':lbl1)))
 
+(test (optimize-endjmp (build-l2mainfn '()))
+      (build-l2mainfn '()))
+(test (optimize-endjmp (build-l2mainfn '((eax <- 5))))
+      (build-l2mainfn '((eax <- 5))))
+(test (optimize-endjmp (build-l2mainfn '((eax <- 5) (ecx <- 9))))
+      (build-l2mainfn '((eax <- 5) (ecx <- 9))))
+(test (optimize-endjmp (build-l2mainfn '((goto :end) :end)))
+      (build-l2mainfn '()))
+(test (optimize-endjmp (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12))))
+      (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12))))
+(test (optimize-endjmp (build-l2mainfn
+                        '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :a))))
+      (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :a))))
+(test (optimize-endjmp (build-l2mainfn
+                        '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :a) :b)))
+      (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :a) :b)))
+(test (optimize-endjmp (build-l2mainfn
+                        '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :a) :a)))
+      (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12))))
+(test (optimize-endjmp (build-l2mainfn
+                        '((eax <- 5) (edx <- -1) (ecx <- 12) (goto :end) :end)))
+      (build-l2mainfn '((eax <- 5) (edx <- -1) (ecx <- 12))))
+
 (printf "tests completed~n")
