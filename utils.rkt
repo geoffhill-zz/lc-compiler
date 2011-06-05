@@ -7,7 +7,7 @@
 ; macro for function definitions
 ; enabling this value causes contracts to be enforced
 (define-syntax (define-with-contract stx)
-  (define enforce-contracts? #t)
+  (define enforce-contracts? #f)
   (syntax-case stx ()
     [(define-with-contract (fn args ...) fn-contract body-exprs ...)
      (if enforce-contracts?
