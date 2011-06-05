@@ -295,7 +295,7 @@
           (l2reg-color (fix-stack stmts offset) coloring)
           (if (set-empty? spillables)
               (error 'L2 "no variables left to spill")
-              (let-values ([(next rest) (choose-spill-var spillables nodes edges)])
+              (let-values ([(next rest) (choose-spill-var spillables edges)])
                 (let* ([stmt-lst (vector->list stmts)]
                        [spilled-fn (spill stmt-lst next (- offset 4) L2-spill-prefix)]
                        [new-base (build-l2reg-base spilled-fn)]
@@ -367,11 +367,11 @@
 
 ;; given a spillable set, choose the best one to spill
 ;; policy decision
-(define-with-contract (choose-spill-var spillables nodes edges)
-  ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
-  (let* ([spillable-list (alphabetize spillables)]
-         [spillable-pref (reverse (sort spillable-list < #:key (λ (n) (degree n edges))))])
-    (values (first spillable-pref) (list->set (rest spillable-pref)))))
+(define-with-contract (choose-spill-var spillables edges)
+  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
+  (let* ([spillable-list (sort-by-degree spillables edges)])
+    (values (first spillable-list) (list->set (rest spillable-list)))))
+
 
 ;; add statements to fix stack alignment
 ;; ensures that labeled functions stay labeled
@@ -403,27 +403,34 @@
   ((setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) colormap? . -> . (or/c colormap? false?))
   (if (set-empty? rem-nodes)
       colors
-      (let-values ([(next rest) (choose-next-node rem-nodes nodes edges)])
+      (let-values ([(next rest) (choose-next-node rem-nodes edges)])
         (let* ([possible-edges (pairs next used-regs)]
                [valid-edges (set-subtract possible-edges edges)])
           (and (not (set-empty? valid-edges))
-               (let* ([edge (choose-edge valid-edges nodes edges)]
+               (let* ([edge (choose-edge valid-edges edges)]
                       [reg (reg-from-edge edge)]
                       [new-edges (interference-union edge edges)])
                  (build-colormap rest nodes new-edges (hash-set colors next reg))))))))
 
 ;; given a colorable node set, choose the best one to color
 ;; policy decision
-(define-with-contract (choose-next-node rem-nodes nodes edges)
-  ((non-empty-setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
-  (let* ([rem-node-list (alphabetize rem-nodes)]
-         [rem-node-pref (reverse (sort rem-node-list < #:key (λ (n) (degree n edges))))])
-    (values (first rem-node-pref) (list->set (rest rem-node-pref)))))
+(define-with-contract (choose-next-node rem-nodes edges)
+  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
+  (let* ([rem-node-list (set->list rem-nodes)])
+    (values (first rem-node-list) (list->set (rest rem-node-list)))))
+
+;; here is an an alternatve implementation of choose-spill-var
+;; unfortunately, it takes much longer
+;; duplicated functionality in choose-next-node
+(define-with-contract (choose-next-node-alt rem-nodes edges)
+  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
+  (let* ([rem-node-list (sort-by-degree rem-nodes edges)])
+    (values (first rem-node-list) (list->set (rest rem-node-list)))))
 
 ;; given a set of valid register associations, choose the best one
 ;; policy decision
-(define-with-contract (choose-edge valid-edges nodes edges)
-  ((non-empty-setof (pairof L2-x?)) (setof L2-x?) (setof (pairof L2-x?)) . -> . (pairof L2-x?))
+(define-with-contract (choose-edge valid-edges edges)
+  ((non-empty-setof (pairof L2-x?)) (setof (pairof L2-x?)) . -> . (pairof L2-x?))
   (first (set->list valid-edges)))
 
 ;; extends edges so that everything that interfered
@@ -454,9 +461,12 @@
 ;; given a node and an edge set, get the degree of the node
 (define-with-contract (degree node edges)
   (L2-x? (setof (pairof L2-x?)) . -> . integer?)
-  (set-count (set-filter edges (λ (e) (let ([lst (set->list e)])
-                                        (or (equal? node (first lst))
-                                            (equal? node (second lst))))))))
+  (set-count (set-filter edges (λ (e) (set-member? e node)))))
+
+;; given a set of nodes and an edge set, sort the nodes by degree
+(define-with-contract (sort-by-degree nodes edges)
+  ((setof L2-x?) (setof (pairof L2-x?)) . -> . (listof L2-x?))
+  (reverse (sort (set->list nodes) < #:key (λ (n) (degree n edges)))))
 
 ;;;
 ;;; L2 -> L1 COMPILATION
