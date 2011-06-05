@@ -1,5 +1,10 @@
 a.out
 .DS_Store
 *.rkt~
+*.L5~
+*.L4~
+*.L3~
+*.L2~
+*.L1~
 compiled
 
