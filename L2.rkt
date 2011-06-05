@@ -403,24 +403,26 @@
 (define-with-contract (color nodes edges)
   (node-set? edge-set? . -> . (or/c colormap? false?))
   (build-colormap (set-subtract nodes used-regs)
+                  nodes
                   edges
                   (colormap used-regs)))
 
-(define-with-contract (build-colormap rem-nodes edges colors)
+(define-with-contract (build-colormap rem-nodes nodes edges colors)
   (node-set? node-set? edge-set? colormap? . -> . (or/c colormap? false?))
-  (build-colormap-ordered (order-nodes-to-color rem-nodes edges) edges colors))
+  (build-colormap-ordered (order-nodes-to-color rem-nodes edges) nodes edges colors))
 
-(define-with-contract (build-colormap-ordered rem-list edges colors)
-  ((listof node?) edge-set? colormap? . -> . (or/c colormap? false?))
+(define-with-contract (build-colormap-ordered rem-list nodes edges colors)
+  ((listof node?) node-set? edge-set? colormap? . -> . (or/c colormap? false?))
   (if (null? rem-list)
       colors
       (let* ([possible-edges (pairs (first rem-list) used-regs)]
              [valid-edges (set-subtract possible-edges edges)])
         (and (not (set-empty? valid-edges))
-             (let* ([edge (choose-edge valid-edges edges)]
+             (let* ([edge (choose-edge valid-edges nodes edges)]
                     [reg (reg-from-edge edge)]
                     [new-edges (interference-union edge edges)])
                (build-colormap-ordered (rest rem-list)
+                                       nodes
                                        new-edges
                                        (hash-set colors (first rem-list) reg)))))))
 
@@ -428,21 +430,25 @@
 ;; policy decision
 ;; this implementation orders by decreasing degree
 (define-with-contract (order-nodes-to-color rem-nodes edges)
-  (non-empty-node-set? edge-set? . -> . (listof node?))
+  (non-empty-node-set? node-set? edge-set? . -> . (listof node?))
   (sort-by-degree rem-nodes edges))
 
 ;; given a set of valid register associations, choose the best one
 ;; policy decision
-(define-with-contract (choose-edge valid-edges edges)
+;; gets the edge with the highest combined degree
+(define-with-contract (choose-edge valid-edges nodes edges)
   (non-empty-edge-set? edge-set? . -> . edge?)
-  (let* ([tagged-edges (set-map valid-edges
-                                (λ (ve)
-                                  (let ([lstform (set->list ve)])
-                                    (cons ve
-                                          (+ (degree (first lstform) edges)
-                                             (degree (second lstform) edges))))))]
-         [sorted (sort tagged-edges > #:key cdr)])
-    (car (first sorted))))
+  (let* ([degree-map (make-immutable-hash
+                      (set-map nodes
+                               (λ (n)
+                                 (cons n (degree n edges)))))]
+         [sorted (sort (set->list valid-edges)
+                       >
+                       #:key (λ (ve)
+                               (let ([lstform (set->list ve)])
+                                 (+ (hash-ref degree-map (first lstform))
+                                    (hash-ref degree-map (second lstform))))))])
+    (first sorted)))
 
 ;; extends edges so that everything that interfered
 ;; with one member of edge also interferes with other
