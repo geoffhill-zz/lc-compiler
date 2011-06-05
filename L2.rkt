@@ -19,21 +19,21 @@
 (define-with-contract (replace-stmt-vars stmt r)
   (L2stmt? (L2-s? . -> . L2-s?) . -> . L2stmt?)
   (type-case L2stmt stmt
-      [l2s-assign (lhs rhs) (l2s-assign (r lhs) (r rhs))]
-      [l2s-memget (lhs base offset) (l2s-memget (r lhs) (r base) offset)]
-      [l2s-memset (base offset rhs) (l2s-memset (r base) offset (r rhs))]
-      [l2s-aop (lhs op rhs) (l2s-aop (r lhs) op (r rhs))]
-      [l2s-sop (lhs op rhs) (l2s-sop (r lhs) op (r rhs))]
-      [l2s-cmp (lhs c1 op c2) (l2s-cmp (r lhs) (r c1) op (r c2))]
-      [l2s-label (lbl) (l2s-label lbl)]
-      [l2s-goto (lbl) (l2s-goto lbl)]
-      [l2s-cjump (c1 op c2 lbl1 lbl2) (l2s-cjump (r c1) op (r c2) lbl1 lbl2)]
-      [l2s-call (dst) (l2s-call (r dst))]
-      [l2s-tcall (dst) (l2s-tcall (r dst))]
-      [l2s-return () (l2s-return)]
-      [l2s-print (lhs arg1) (l2s-print (r lhs) (r arg1))]
-      [l2s-alloc (lhs arg1 arg2) (l2s-alloc (r lhs) (r arg1) (r arg2))]
-      [l2s-arrayerr (lhs arg1 arg2) (l2s-arrayerr (r lhs) (r arg1) (r arg2))]))
+    [l2s-assign (lhs rhs) (l2s-assign (r lhs) (r rhs))]
+    [l2s-memget (lhs base offset) (l2s-memget (r lhs) (r base) offset)]
+    [l2s-memset (base offset rhs) (l2s-memset (r base) offset (r rhs))]
+    [l2s-aop (lhs op rhs) (l2s-aop (r lhs) op (r rhs))]
+    [l2s-sop (lhs op rhs) (l2s-sop (r lhs) op (r rhs))]
+    [l2s-cmp (lhs c1 op c2) (l2s-cmp (r lhs) (r c1) op (r c2))]
+    [l2s-label (lbl) (l2s-label lbl)]
+    [l2s-goto (lbl) (l2s-goto lbl)]
+    [l2s-cjump (c1 op c2 lbl1 lbl2) (l2s-cjump (r c1) op (r c2) lbl1 lbl2)]
+    [l2s-call (dst) (l2s-call (r dst))]
+    [l2s-tcall (dst) (l2s-tcall (r dst))]
+    [l2s-return () (l2s-return)]
+    [l2s-print (lhs arg1) (l2s-print (r lhs) (r arg1))]
+    [l2s-alloc (lhs arg1 arg2) (l2s-alloc (r lhs) (r arg1) (r arg2))]
+    [l2s-arrayerr (lhs arg1 arg2) (l2s-arrayerr (r lhs) (r arg1) (r arg2))]))
 
 ;;;
 ;;; REGISTER ALLOCATION TYPES
@@ -116,10 +116,10 @@
   (L2stmt? labelmap? integer? integer? . -> . (set/c integer?))
   (type-case L2stmt stmt
     [l2s-goto (lbl)
-               (set (hash-ref lblmap lbl))]
+              (set (hash-ref lblmap lbl))]
     [l2s-cjump (c1 op c2 lbl1 lbl2)
-                (set (hash-ref lblmap lbl1)
-                     (hash-ref lblmap lbl2))]
+               (set (hash-ref lblmap lbl1)
+                    (hash-ref lblmap lbl2))]
     [l2s-tcall (dst) (set)]
     [l2s-return () (set)]
     [l2s-arrayerr (lhs arg1 arg2) (set)]
@@ -201,6 +201,13 @@
 ;;; L2REG-GRAPH GENERATION
 ;;;
 
+(define node? L2-x?)
+(define node-set? (setof node?))
+(define non-empty-node-set? (non-empty-setof node?))
+(define edge? (pairof node?))
+(define edge-set? (setof (pairof node?)))
+(define non-empty-edge-set? (non-empty-setof (pairof node?)))
+
 ;; creates an L2reg-graph from L2reg-liveness
 (define-with-contract (build-l2reg-graph l2fn)
   (l2reg-liveness? . -> . l2reg-graph?)
@@ -235,12 +242,12 @@
 ;; including all the implicitly used variables
 ;; from gen/kill
 (define-with-contract (var stmt)
-  (L2stmt? . -> . (setof L2-x?))
+  (L2stmt? . -> . node-set?)
   (set-union (gen stmt) (kill stmt)))
 
 ;; generates the set of edges of the graph
 (define-with-contract (graph-edges l2fn)
-  (l2reg-liveness? . -> . (setof (pairof L2-x?)))
+  (l2reg-liveness? . -> . edge-set?)
   (let* ([stmts (l2reg-liveness-stmts l2fn)]
          [len (vector-length stmts)]
          [ins (l2reg-liveness-ins l2fn)]
@@ -269,9 +276,9 @@
                               (set-subtract used-regs valid-cmp-regs))
                        (set)))]
                  [interfering-pairs
-                   (type-case L2stmt stmt
-                     [l2s-assign (lhs rhs) (set-remove toomany-interfering-pairs (set lhs rhs))]
-                     [else toomany-interfering-pairs])]
+                  (type-case L2stmt stmt
+                    [l2s-assign (lhs rhs) (set-remove toomany-interfering-pairs (set lhs rhs))]
+                    [else toomany-interfering-pairs])]
                  [important-pairs (set-filter interfering-pairs no-ignored-regs)])
             (loop (+ i 1) (set-union edges important-pairs)))))))
 
@@ -284,93 +291,94 @@
 ;; creates an L2reg-color from L2reg-graph
 (define-with-contract (build-l2reg-color l2fn)
   (l2reg-graph? . -> . l2reg-color?)
-  (let loop ([l2fn l2fn]
-             [offset 0]
-             [spillables (set-subtract (l2reg-graph-nodes l2fn) all-regs)])
-    (let* ([stmts (l2reg-graph-stmts l2fn)]
-           [nodes (l2reg-graph-nodes l2fn)]
-           [edges (l2reg-graph-edges l2fn)]
-           [coloring (color nodes edges)])
-      (if coloring
-          (l2reg-color (fix-stack stmts offset) coloring)
-          (if (set-empty? spillables)
-              (error 'L2 "no variables left to spill")
-              (let-values ([(next rest) (choose-spill-var spillables edges)])
-                (let* ([stmt-lst (vector->list stmts)]
-                       [spilled-fn (spill stmt-lst next (- offset 4) L2-spill-prefix)]
-                       [new-base (build-l2reg-base spilled-fn)]
-                       [new-succ (build-l2reg-succ new-base)]
-                       [new-liveness (build-l2reg-liveness new-succ)]
-                       [new-graph (build-l2reg-graph new-liveness)])
-                  (loop new-graph (- offset 4) rest))))))))
+  (let ([varfn (make-counter L2-spill-prefix)])
+    (define (spill-multiple stmts spill-lst offset)
+      (if (null? spill-lst)
+          stmts
+          (spill-multiple (spill stmts (first spill-lst) (- offset 4) varfn)
+                          (rest spill-lst)
+                          (- offset 4))))
+    (let loop ([l2fn l2fn]
+               [offset 0]
+               [spillables (set-subtract (l2reg-graph-nodes l2fn) all-regs)])
+      (let* ([stmts (l2reg-graph-stmts l2fn)]
+             [nodes (l2reg-graph-nodes l2fn)]
+             [edges (l2reg-graph-edges l2fn)]
+             [coloring (color nodes edges)])
+        (if coloring
+            (l2reg-color (fix-stack stmts offset) coloring)
+            (if (set-empty? spillables)
+                (error 'L2 "no variables left to spill")
+                (let-values ([(to-spill to-keep) (choose-spill-vars spillables edges)])
+                  (let* ([stmt-lst (vector->list stmts)]
+                         [spill-lst (set->list to-spill)]
+                         [spilled-fn (spill-multiple stmt-lst spill-lst offset)]
+                         [num-spilled (set-count to-spill)]
+                         [new-base (build-l2reg-base spilled-fn)]
+                         [new-succ (build-l2reg-succ new-base)]
+                         [new-liveness (build-l2reg-liveness new-succ)]
+                         [new-graph (build-l2reg-graph new-liveness)])
+                    (loop new-graph (- offset (* 4 num-spilled)) to-keep)))))))))
 
 ;; spills a variable in an L2fn
-(define-with-contract (spill stmts name offset prefix)
-  ((listof L2stmt?) L2-x? n4? L2-x? . -> . (listof L2stmt?))
+(define-with-contract (spill stmts name offset varfn)
+  ((listof L2stmt?) L2-x? n4? (-> symbol?) . -> . (listof L2stmt?))
   (let loop ([stmts stmts]
-             [temp-count 0]
              [accum '()])
     (if (null? stmts)
         (reverse accum)
         (let* ([stmt (car stmts)]
-               [temp (temp-var prefix temp-count)]
                [in-gen (set-member? (gen stmt) name)]
-               [in-kill (set-member? (kill stmt) name)]
-               [rfn (λ (x) (if (equal? x name) temp x))])
+               [in-kill (set-member? (kill stmt) name)])
           (cond
             ; special case: unneccesary assignment
             [(and (l2s-assign? stmt)
                   (equal? (l2s-assign-lhs stmt) name)
                   (equal? (l2s-assign-rhs stmt) name))
-             (loop (cdr stmts) temp-count accum)]
+             (loop (cdr stmts) accum)]
             ; special case: assignment lhs
             [(and (l2s-assign? stmt)
                   (equal? (l2s-assign-lhs stmt) name))
              (loop (cdr stmts)
-                   temp-count
                    (cons (l2s-memset 'ebp offset (l2s-assign-rhs stmt)) accum))]
             ; special case: assignment rhs
             [(and (l2s-assign? stmt)
                   (equal? (l2s-assign-rhs stmt) name))
              (loop (cdr stmts)
-                   temp-count
                    (cons (l2s-memget (l2s-assign-lhs stmt) 'ebp offset) accum))]
             ; general case: gen'd and kill'd
             [(and in-gen in-kill)
-             (loop (cdr stmts)
-                   (+ temp-count 1)
-                   (append
-                    `(,(l2s-memset 'ebp offset temp)
-                      ,(replace-stmt-vars stmt rfn)
-                      ,(l2s-memget temp 'ebp offset))
-                    accum))]
+             (let ([temp (varfn)])
+               (loop (cdr stmts)
+                     `(,(l2s-memset 'ebp offset temp)
+                       ,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
+                       ,(l2s-memget temp 'ebp offset)
+                       ,@accum)))]
             ; general case: gen'd only
             [in-gen
-             (loop (cdr stmts)
-                   (+ temp-count 1)
-                   (append
-                    `(,(replace-stmt-vars stmt rfn)
-                      ,(l2s-memget temp 'ebp offset))
-                    accum))]
+             (let ([temp (varfn)])
+               (loop (cdr stmts)
+                     `(,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
+                       ,(l2s-memget temp 'ebp offset)
+                       ,@accum)))]
             ; general case: kill'd only
             [in-kill
-             (loop (cdr stmts)
-                   (+ temp-count 1)
-                   (append
-                    `(,(l2s-memset 'ebp offset temp)
-                      ,(replace-stmt-vars stmt rfn))
-                    accum))]
+             (let ([temp (varfn)])
+               (loop (cdr stmts)
+                     `(,(l2s-memset 'ebp offset temp)
+                       ,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
+                       ,@accum)))]
             ; general case: not gen'd or kill'd
             [else
-             (loop (cdr stmts) temp-count (cons stmt accum))])))))
+             (loop (cdr stmts) (cons stmt accum))])))))
 
 
-;; given a spillable set, choose the best one to spill
+;; given a spillable set, choose the best set to spill
 ;; policy decision
-(define-with-contract (choose-spill-var spillables edges)
-  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
-  (let* ([spillable-list (sort-by-degree spillables edges)])
-    (values (first spillable-list) (list->set (rest spillable-list)))))
+;; this implementation spills the 1/4 with the highest degree
+(define-with-contract (choose-spill-vars spillables edges)
+  (non-empty-node-set? edge-set? . -> . (values node-set? node-set?))
+  (split-by-degree spillables edges (ceiling (/ (set-count spillables) 4))))
 
 
 ;; add statements to fix stack alignment
@@ -393,29 +401,29 @@
 
 ;; create a color mapping from an interference graph
 (define-with-contract (color nodes edges)
-  ((setof L2-x?) (setof (pairof L2-x?)) . -> . (or/c colormap? false?))
+  (node-set? edge-set? . -> . (or/c colormap? false?))
   (build-colormap (set-subtract nodes used-regs)
                   nodes
                   edges
                   (colormap used-regs)))
 
 (define-with-contract (build-colormap rem-nodes nodes edges colors)
-  ((setof L2-x?) (setof L2-x?) (setof (pairof L2-x?)) colormap? . -> . (or/c colormap? false?))
+  (node-set? node-set? edge-set? colormap? . -> . (or/c colormap? false?))
   (if (set-empty? rem-nodes)
       colors
-      (let-values ([(next rest) (choose-next-node rem-nodes edges)])
-        (let* ([possible-edges (pairs next used-regs)]
+      (let-values ([(to-color to-keep) (choose-next-node rem-nodes edges)])
+        (let* ([possible-edges (pairs to-color used-regs)]
                [valid-edges (set-subtract possible-edges edges)])
           (and (not (set-empty? valid-edges))
                (let* ([edge (choose-edge valid-edges edges)]
                       [reg (reg-from-edge edge)]
                       [new-edges (interference-union edge edges)])
-                 (build-colormap rest nodes new-edges (hash-set colors next reg))))))))
+                 (build-colormap to-keep nodes new-edges (hash-set colors to-color reg))))))))
 
 ;; given a colorable node set, choose the best one to color
 ;; policy decision
 (define-with-contract (choose-next-node rem-nodes edges)
-  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
+  (non-empty-node-set? edge-set? . -> . (values node? node-set?))
   (let* ([rem-node-list (set->list rem-nodes)])
     (values (first rem-node-list) (list->set (rest rem-node-list)))))
 
@@ -423,20 +431,20 @@
 ;; unfortunately, it takes much longer
 ;; duplicated functionality in choose-next-node
 (define-with-contract (choose-next-node-alt rem-nodes edges)
-  ((non-empty-setof L2-x?) (setof (pairof L2-x?)) . -> . (values L2-x? (setof L2-x?)))
+  (non-empty-node-set? edge-set? . -> . (values node? node-set?))
   (let* ([rem-node-list (sort-by-degree rem-nodes edges)])
     (values (first rem-node-list) (list->set (rest rem-node-list)))))
 
 ;; given a set of valid register associations, choose the best one
 ;; policy decision
 (define-with-contract (choose-edge valid-edges edges)
-  ((non-empty-setof (pairof L2-x?)) (setof (pairof L2-x?)) . -> . (pairof L2-x?))
+  (non-empty-edge-set? edge-set? . -> . edge?)
   (first (set->list valid-edges)))
 
 ;; extends edges so that everything that interfered
 ;; with one member of edge also interferes with other
 (define-with-contract (interference-union edge edges)
-  ((pairof L2-x?) (setof (pairof L2-x?)) . -> . (setof (pairof L2-x?)))
+  (edge? edge-set? . -> . edge-set?)
   (let* ([ns (set->list edge)]
          [n1 (first ns)]
          [n2 (second ns)])
@@ -450,23 +458,31 @@
 
 ;; given an edge with one register, get the register
 (define-with-contract (reg-from-edge edge)
-  ((pairof L2-x?) . -> . L2-x?)
+  (edge? . -> . node?)
   (first (set->list (set-intersect edge all-regs))))
 
 ;; given an edge and one of the nodes, get the other node
 (define-with-contract (opposite edge node)
-  ((pairof L2-x?) L2-x? . -> . L2-x?)
+  (edge? node? . -> . node?)
   (first (set->list (set-remove edge node))))
 
 ;; given a node and an edge set, get the degree of the node
 (define-with-contract (degree node edges)
-  (L2-x? (setof (pairof L2-x?)) . -> . integer?)
+  (node? edge-set? . -> . integer?)
   (set-count (set-filter edges (λ (e) (set-member? e node)))))
 
 ;; given a set of nodes and an edge set, sort the nodes by degree
+;; TODO: eliminate reverse
 (define-with-contract (sort-by-degree nodes edges)
-  ((setof L2-x?) (setof (pairof L2-x?)) . -> . (listof L2-x?))
+  (node-set? edge-set? . -> . (listof node?))
   (reverse (sort (set->list nodes) < #:key (λ (n) (degree n edges)))))
+
+;; splits a set of nodes based on the degree
+(define pos-int? exact-positive-integer?)
+(define-with-contract (split-by-degree nodes edges count)
+  (non-empty-node-set? edge-set? pos-int? . -> . (values node-set? node-set?))
+  (let-values ([(a b) (split-at (sort-by-degree nodes edges) count)])
+    (values (list->set a) (list->set b))))
 
 ;;;
 ;;; L2 -> L1 COMPILATION
@@ -514,21 +530,21 @@
     (let loop ([stmts (reverse stmts)]
                [accum '()])
       (if (null? stmts)
-           (append `(,(l2s-assign edi-var 'edi)
-                     ,(l2s-assign esi-var 'esi))
-                   accum
-                   `(,(l2s-assign 'edi edi-var)
-                     ,(l2s-assign 'esi esi-var)))
-           (let* ([stmt (first stmts)]
-                  [new-stmts (type-case L2stmt stmt
-                               [l2s-tcall (dst) `(,(l2s-assign 'edi edi-var)
-                                                  ,(l2s-assign 'esi esi-var)
-                                                  ,stmt)]
-                               [l2s-return () `(,(l2s-assign 'edi edi-var)
-                                                ,(l2s-assign 'esi esi-var)
-                                                ,stmt)]
-                               [else `(,stmt)])])
-             (loop (rest stmts) (append new-stmts accum)))))))
+          (append `(,(l2s-assign edi-var 'edi)
+                    ,(l2s-assign esi-var 'esi))
+                  accum
+                  `(,(l2s-assign 'edi edi-var)
+                    ,(l2s-assign 'esi esi-var)))
+          (let* ([stmt (first stmts)]
+                 [new-stmts (type-case L2stmt stmt
+                              [l2s-tcall (dst) `(,(l2s-assign 'edi edi-var)
+                                                 ,(l2s-assign 'esi esi-var)
+                                                 ,stmt)]
+                              [l2s-return () `(,(l2s-assign 'edi edi-var)
+                                               ,(l2s-assign 'esi esi-var)
+                                               ,stmt)]
+                              [else `(,stmt)])])
+            (loop (rest stmts) (append new-stmts accum)))))))
 
 (define-with-contract (useful-stmt? stmt)
   (L1stmt? . -> . boolean?)
@@ -540,19 +556,19 @@
 (define-with-contract (compile-L2stmt stmt)
   (L2stmt? . -> . L1stmt?)
   (type-case L2stmt stmt
-      [l2s-assign (lhs rhs) (l1s-assign lhs rhs)]
-      [l2s-memget (lhs base offset) (l1s-memget lhs base offset)]
-      [l2s-memset (base offset rhs) (l1s-memset base offset rhs)]
-      [l2s-aop (lhs op rhs) (l1s-aop lhs op rhs)]
-      [l2s-sop (lhs op rhs) (l1s-sop lhs op rhs)]
-      [l2s-cmp (lhs c1 op c2) (l1s-cmp lhs c1 op c2)]
-      [l2s-label (lbl) (l1s-label lbl)]
-      [l2s-goto (lbl) (l1s-goto lbl)]
-      [l2s-cjump (c1 op c2 lbl1 lbl2) (l1s-cjump c1 op c2 lbl1 lbl2)]
-      [l2s-call (dst) (l1s-call dst)]
-      [l2s-tcall (dst) (l1s-tcall dst)]
-      [l2s-return () (l1s-return)]
-      [l2s-print (lhs arg1) (l1s-print lhs arg1)]
-      [l2s-alloc (lhs arg1 arg2) (l1s-alloc lhs arg1 arg2)]
-      [l2s-arrayerr (lhs arg1 arg2) (l1s-arrayerr lhs arg1 arg2)]))
+    [l2s-assign (lhs rhs) (l1s-assign lhs rhs)]
+    [l2s-memget (lhs base offset) (l1s-memget lhs base offset)]
+    [l2s-memset (base offset rhs) (l1s-memset base offset rhs)]
+    [l2s-aop (lhs op rhs) (l1s-aop lhs op rhs)]
+    [l2s-sop (lhs op rhs) (l1s-sop lhs op rhs)]
+    [l2s-cmp (lhs c1 op c2) (l1s-cmp lhs c1 op c2)]
+    [l2s-label (lbl) (l1s-label lbl)]
+    [l2s-goto (lbl) (l1s-goto lbl)]
+    [l2s-cjump (c1 op c2 lbl1 lbl2) (l1s-cjump c1 op c2 lbl1 lbl2)]
+    [l2s-call (dst) (l1s-call dst)]
+    [l2s-tcall (dst) (l1s-tcall dst)]
+    [l2s-return () (l1s-return)]
+    [l2s-print (lhs arg1) (l1s-print lhs arg1)]
+    [l2s-alloc (lhs arg1 arg2) (l1s-alloc lhs arg1 arg2)]
+    [l2s-arrayerr (lhs arg1 arg2) (l1s-arrayerr lhs arg1 arg2)]))
 

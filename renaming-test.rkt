@@ -6,7 +6,6 @@
 ;;; Spring 2011
 
 (require (file "input.rkt"))
-(require (file "output.rkt")) ;; TODO: remove after debugging
 (require (file "renaming.rkt"))
 
 (let ([d (dict)])
