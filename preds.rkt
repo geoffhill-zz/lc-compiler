@@ -22,6 +22,11 @@
    'n4?
    (λ (x) (and (integer? x) (zero? (modulo x 4))))))
 
+(define negative-n4?
+  (flat-named-contract
+   'negative-v4?
+   (and/c n4? (</c 0))))
+
 (define nonpositive-n4?
   (flat-named-contract
    'nonpositive-n4?

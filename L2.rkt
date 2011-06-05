@@ -292,12 +292,6 @@
 (define-with-contract (build-l2reg-color l2fn)
   (l2reg-graph? . -> . l2reg-color?)
   (let ([varfn (make-counter L2-spill-prefix)])
-    (define (spill-multiple stmts spill-lst offset)
-      (if (null? spill-lst)
-          stmts
-          (spill-multiple (spill stmts (first spill-lst) (- offset 4) varfn)
-                          (rest spill-lst)
-                          (- offset 4))))
     (let loop ([l2fn l2fn]
                [offset 0]
                [spillables (set-subtract (l2reg-graph-nodes l2fn) all-regs)])
@@ -312,7 +306,7 @@
                 (let-values ([(to-spill to-keep) (choose-spill-vars spillables edges)])
                   (let* ([stmt-lst (vector->list stmts)]
                          [spill-lst (set->list to-spill)]
-                         [spilled-fn (spill-multiple stmt-lst spill-lst offset)]
+                         [spilled-fn (spill-multiple stmt-lst spill-lst offset varfn)]
                          [num-spilled (set-count to-spill)]
                          [new-base (build-l2reg-base spilled-fn)]
                          [new-succ (build-l2reg-succ new-base)]
@@ -320,57 +314,61 @@
                          [new-graph (build-l2reg-graph new-liveness)])
                     (loop new-graph (- offset (* 4 num-spilled)) to-keep)))))))))
 
-;; spills a variable in an L2fn
-(define-with-contract (spill stmts name offset varfn)
-  ((listof L2stmt?) L2-x? n4? (-> symbol?) . -> . (listof L2stmt?))
-  (let loop ([stmts stmts]
-             [accum '()])
-    (if (null? stmts)
-        (reverse accum)
-        (let* ([stmt (car stmts)]
-               [in-gen (set-member? (gen stmt) name)]
-               [in-kill (set-member? (kill stmt) name)])
-          (cond
-            ; special case: unneccesary assignment
-            [(and (l2s-assign? stmt)
-                  (equal? (l2s-assign-lhs stmt) name)
-                  (equal? (l2s-assign-rhs stmt) name))
-             (loop (cdr stmts) accum)]
-            ; special case: assignment lhs
-            [(and (l2s-assign? stmt)
-                  (equal? (l2s-assign-lhs stmt) name))
-             (loop (cdr stmts)
-                   (cons (l2s-memset 'ebp offset (l2s-assign-rhs stmt)) accum))]
-            ; special case: assignment rhs
-            [(and (l2s-assign? stmt)
-                  (equal? (l2s-assign-rhs stmt) name))
-             (loop (cdr stmts)
-                   (cons (l2s-memget (l2s-assign-lhs stmt) 'ebp offset) accum))]
-            ; general case: gen'd and kill'd
-            [(and in-gen in-kill)
-             (let ([temp (varfn)])
-               (loop (cdr stmts)
-                     `(,(l2s-memset 'ebp offset temp)
-                       ,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
-                       ,(l2s-memget temp 'ebp offset)
-                       ,@accum)))]
-            ; general case: gen'd only
-            [in-gen
-             (let ([temp (varfn)])
-               (loop (cdr stmts)
-                     `(,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
-                       ,(l2s-memget temp 'ebp offset)
-                       ,@accum)))]
-            ; general case: kill'd only
-            [in-kill
-             (let ([temp (varfn)])
-               (loop (cdr stmts)
-                     `(,(l2s-memset 'ebp offset temp)
-                       ,(replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
-                       ,@accum)))]
-            ; general case: not gen'd or kill'd
-            [else
-             (loop (cdr stmts) (cons stmt accum))])))))
+;; spills a set of variables
+(define-with-contract (spill-multiple stmts name-lst offset varfn)
+  ((listof L2stmt?) (listof node?) n4? (-> symbol?) . -> . (listof L2stmt?))
+  (if (null? name-lst)
+      stmts
+      (spill-multiple (spill-one stmts (first name-lst) (- offset 4) varfn)
+                      (rest name-lst)
+                      (- offset 4)
+                      varfn)))
+
+;; spills a single variable
+(define-with-contract (spill-one stmts name offset varfn)
+  ((listof L2stmt?) node? n4? (-> symbol?) . -> . (listof L2stmt?))
+  (if (null? stmts)
+      '()
+      (append (spill-stmt (first stmts) name offset varfn)
+              (spill-one (rest stmts) name offset varfn))))
+
+;; spills a single statement
+(define-with-contract (spill-stmt stmt name offset varfn)
+  (L2stmt? node? n4? (-> symbol?) . -> . (listof L2stmt?))
+  (let* ([in-gen (set-member? (gen stmt) name)]
+         [in-kill (set-member? (kill stmt) name)])
+    (cond
+      ; special case: unneccesary assignment
+      [(and (l2s-assign? stmt)
+            (equal? (l2s-assign-lhs stmt) name)
+            (equal? (l2s-assign-rhs stmt) name))
+       '()]
+      ; special case: assignment lhs
+      [(and (l2s-assign? stmt)
+            (equal? (l2s-assign-lhs stmt) name))
+       (list (l2s-memset 'ebp offset (l2s-assign-rhs stmt)))]
+      ; special case: assignment rhs
+      [(and (l2s-assign? stmt)
+            (equal? (l2s-assign-rhs stmt) name))
+       (list (l2s-memget (l2s-assign-lhs stmt) 'ebp offset))]
+      ; general case: gen'd and kill'd
+      [(and in-gen in-kill)
+       (let ([temp (varfn)])
+         (list (l2s-memget temp 'ebp offset)
+               (replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
+               (l2s-memset 'ebp offset temp)))]
+      ; general case: gen'd only
+      [in-gen
+       (let ([temp (varfn)])
+         (list (l2s-memget temp 'ebp offset)
+               (replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))))]
+      ; general case: kill'd only
+      [in-kill
+       (let ([temp (varfn)])
+         (list (replace-stmt-vars stmt (λ (x) (if (equal? x name) temp x)))
+               (l2s-memset 'ebp offset temp)))]
+      ; general case: not gen'd or kill'd
+      [else (list stmt)])))
 
 
 ;; given a spillable set, choose the best set to spill
