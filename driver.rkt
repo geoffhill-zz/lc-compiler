@@ -53,7 +53,7 @@
 (define-with-contract (main/spill port)
   (input-port? . -> . void?)
   (let* ([stmts (map build-L2stmt (read port))]
-         [spilled (spill stmts (read port) (read port) (read port))]
+         [spilled (spill stmts (read port) (read port) (make-counter (read port)))]
          [lstform (map format-L2stmt spilled)])
     (pretty-write lstform)
     (void)))
