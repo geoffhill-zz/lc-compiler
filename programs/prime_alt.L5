@@ -13,7 +13,7 @@
                                     (or_reg (= x current)
                                             (and_thunk (<= 2 x)
                                                        (lambda ()
-                                                         (and_thunk (not (divides x current))
+                                                         (and_thunk (not_reg (divides x current))
                                                                     (lambda ()
                                                                       (try_prime x (+ current 1))))))))])
                 (let ([prime (lambda (x) (try_prime x 2))])
