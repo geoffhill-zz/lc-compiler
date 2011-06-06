@@ -373,11 +373,13 @@
 
 ;; given a spillable set, choose the best set to spill
 ;; policy decision
-;; this implementation spills the 1/4 with the highest degree
+;; this implementation spills sqrt(N)-1 for N > 15, otherwise 1
 (define-with-contract (choose-spill-vars spillables edges)
   (non-empty-node-set? edge-set? . -> . (values node-set? node-set?))
   (let* ([total (set-count spillables)]
-         [taken (if (total . > . 14) 3 1)])
+         [taken (if (total . > . 15)
+                    (- (integer-sqrt total) 1)
+                    1)])
     (split-by-degree spillables edges taken)))
 
 
