@@ -15,9 +15,11 @@
 ;;; OPTIMIZATION
 ;;;
 
+;; optimizes the expression by repeated inlining and cleaning
+;; functions can get very large if inlined more than once
 (define-with-contract (optimize expr)
   (L5expr? . -> . L5expr?)
-  (optimize-iter (clean expr) 2 6))
+  (optimize-iter (clean expr) 1 6))
 
 (define-with-contract (optimize-iter expr num-inline num-clean)
   (L5expr? integer? integer? . -> . L5expr?)
