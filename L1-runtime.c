@@ -44,7 +44,7 @@ int l1_print(void* l) {
   return 1;
 }
 
-#define HEAP_SIZE 1048576  // one megabyte
+#define HEAP_SIZE 8388608  // 8MB
 
 void** heap;
 void** allocptr;
