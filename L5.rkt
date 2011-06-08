@@ -17,7 +17,7 @@
 
 (define-with-contract (optimize expr)
   (L5expr? . -> . L5expr?)
-  (optimize-iter (clean expr) 5))
+  (optimize-iter (clean expr) 3))
 
 (define-with-contract (optimize-iter expr num)
   (L5expr? integer? . -> . L5expr?)
@@ -62,6 +62,8 @@
     [l5e-lambda (args body)
                 (l5e-lambda args (inline-fns body fns))]
     [l5e-let (id binding body)
+             ;; sometimes lets go away
+             ;; id is always removed or overriden in funcmap
              (if (and (l5e-lambda? binding)
                       (set-empty? (free-vars binding)))
                  (inline-fns body (funcmap-extend fns id (func (l5e-lambda-args binding)
@@ -70,9 +72,16 @@
                           (inline-fns binding fns)
                           (inline-fns body (funcmap-remove fns id))))]
     [l5e-letrec (id binding body)
+             ;; letrecs never go away
+             ;; id is always removed or overriden in funcmap
                 (l5e-letrec id
                             (inline-fns binding fns)
-                            (inline-fns body (funcmap-remove fns id)))]
+                            (inline-fns body 
+                                        (if (and (l5e-lambda? binding)
+                                                 (set-empty? (free-vars binding)))
+                                            (funcmap-extend fns id (func (l5e-lambda-args binding)
+                                                                         (l5e-lambda-body binding)))
+                                            (funcmap-remove fns id))))]
     [l5e-if (test then else)
             (l5e-if (inline-fns test fns)
                     (inline-fns then fns)
@@ -164,9 +173,14 @@
                             (clean-lets binding smap)
                             (clean-lets body smap))]
     [l5e-if (test then else)
-            (l5e-if (clean-lets test smap)
-                    (clean-lets then smap)
-                    (clean-lets else smap))]
+            (let ([new-test (clean-lets test smap)]
+                  [new-then (clean-lets then smap)]
+                  [new-else (clean-lets else smap)])
+              (if (l5e-num? new-test)
+                  (if (= (l5e-num-num new-test) 0)
+                      new-else
+                      new-then)
+                  (l5e-if new-test new-then new-else)))]
     [l5e-newtuple (args)
                   (l5e-newtuple (for/list ([arg args])
                                   (clean-lets arg smap)))]
@@ -174,9 +188,20 @@
                (l5e-begin (clean-lets fst smap)
                           (clean-lets snd smap))]
     [l5e-app (fn args)
-             (l5e-app (clean-lets fn smap)
-                      (for/list ([arg args])
-                        (clean-lets arg smap)))]
+             (let ([new-fn (clean-lets fn smap)]
+                   [new-args (for/list ([arg args])
+                               (clean-lets arg smap))])
+               (if (and (l5e-prim? fn)
+                        (= (length args) 2)
+                        (andmap l5e-num? args))
+                   (let ([fst (l5e-num-num (first args))]
+                         [snd (l5e-num-num (second args))])
+                     (case (l5e-prim-prim fn)
+                       [(+) (l5e-num (+ fst snd))]
+                       [(-) (l5e-num (- fst snd))]
+                       [(*) (l5e-num (* fst snd))]
+                       [else (l5e-app new-fn new-args)]))
+                   (l5e-app new-fn new-args)))]
     [l5e-prim (prim) expr]
     [l5e-var (var) (or (substmap-getrec smap var) expr)]
     [l5e-num (num) expr]))
@@ -489,16 +514,19 @@
 
 (define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4prog?)
-  (let*-values ([(renamed-expr) (rename-L5expr expr)]
-                [(optim-expr) (optimize renamed-expr)]
-                [(flat-expr) (elim-letrec optim-expr)]
-                [(main cljs) (lambda-lift flat-expr)])
+  (compile-L5expr-unoptim
+   (optimize (rename-L5expr expr))))
+
+(define-with-contract (compile-L5expr-unoptim expr)
+  (L5expr? . -> . L5expr?)
+  (let-values ([(main cljs) (lambda-lift (elim-letrec (rename-L5expr expr)))])
     (l4prog (l4mainfn (convert-L5expr main))
             (map (λ (clj)
                    (type-case Closure clj
                      [closure (lbl args body)
                               (l4fn lbl args (convert-L5expr body))]))
                  cljs))))
+
 
 (define-with-contract (convert-L5expr expr)
   (L5expr? . -> . L4expr?)
