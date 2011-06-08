@@ -17,13 +17,21 @@
 
 (define-with-contract (optimize expr)
   (L5expr? . -> . L5expr?)
-  (optimize-iter (clean expr) 3))
+  (optimize-iter (clean expr) 2 6))
 
-(define-with-contract (optimize-iter expr num)
-  (L5expr? integer? . -> . L5expr?)
-  (if (zero? num)
+(define-with-contract (optimize-iter expr num-inline num-clean)
+  (L5expr? integer? integer? . -> . L5expr?)
+  (if (zero? num-inline)
       expr
-      (optimize-iter (clean (inline expr)) (- num 1))))
+      (optimize-iter (clean-iter (inline expr) num-clean)
+                     (- num-inline 1)
+                     num-clean)))
+
+(define-with-contract (clean-iter expr num-clean)
+  (L5expr? integer? . -> . L5expr?)
+  (if (zero? num-clean)
+      expr
+      (clean-iter (clean expr) (- num-clean 1))))
 
 ;;;
 ;;; INLINING
@@ -74,14 +82,15 @@
     [l5e-letrec (id binding body)
              ;; letrecs never go away
              ;; id is always removed or overriden in funcmap
-                (l5e-letrec id
-                            (inline-fns binding fns)
-                            (inline-fns body 
-                                        (if (and (l5e-lambda? binding)
-                                                 (set-empty? (free-vars binding)))
-                                            (funcmap-extend fns id (func (l5e-lambda-args binding)
-                                                                         (l5e-lambda-body binding)))
-                                            (funcmap-remove fns id))))]
+                (let ([new-fn (and (l5e-lambda? binding)
+                                   (set-empty? (set-remove (free-vars binding) id))
+                                   (func (l5e-lambda-args binding)
+                                         (l5e-lambda-body binding)))])
+                  (l5e-letrec id
+                              (inline-fns binding (if new-fn (funcmap-extend fns id new-fn) fns))
+                              (inline-fns body (if new-fn
+                                                   (funcmap-extend fns id new-fn)
+                                                   (funcmap-remove fns id)))))]
     [l5e-if (test then else)
             (l5e-if (inline-fns test fns)
                     (inline-fns then fns)
@@ -146,7 +155,10 @@
     (cond
       [(false? v) (l5e-var k)]
       [(l5e-num? v) v]
-      [(l5e-var? v) (substmap-getrec m (l5e-var-var v))]
+      [(l5e-var? v)
+       (if (equal? k (l5e-var-var v))
+           (l5e-var k)
+           (substmap-getrec m (l5e-var-var v)))]
       [else #f])))
 
 (define-with-contract (substmap-extend m v expr)
