@@ -12,6 +12,176 @@
 (require (file "renaming.rkt"))
 
 ;;;
+;;; OPTIMIZATION
+;;;
+
+(define-with-contract (optimize expr)
+  (L5expr? . -> . L5expr?)
+  (optimize-iter (clean expr) 5))
+
+(define-with-contract (optimize-iter expr num)
+  (L5expr? integer? . -> . L5expr?)
+  (if (zero? num)
+      expr
+      (optimize-iter (clean (inline expr)) (- num 1))))
+
+;;;
+;;; INLINING
+;;;
+
+(define-with-contract (inline expr)
+  (L5expr? . -> . L5expr?)
+  (inline-fns expr (funcmap)))
+
+(define-type Func
+  [func (args (listof L5-var?))
+        (body L5expr?)])
+
+(define funcmap hash)
+
+(define funcmap?
+  (flat-named-contract
+   'funcmap?
+   (hash/c L5-var? Func? #:immutable #t #:flat? #t)))
+
+(define-with-contract (funcmap-get m v)
+  (funcmap? L5-var? . -> . (or/c Func? false?))
+  (hash-ref m v #f))
+
+(define-with-contract (funcmap-extend m v expr)
+  (funcmap? L5-var? Func? . -> . funcmap?)
+  (hash-set m v expr))
+
+(define-with-contract (funcmap-remove m v)
+  (funcmap? L5-var? . -> . funcmap?)
+  (hash-remove m v))
+
+(define-with-contract (inline-fns expr fns)
+  (L5expr? funcmap? . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (l5e-lambda args (inline-fns body fns))]
+    [l5e-let (id binding body)
+             (if (and (l5e-lambda? binding)
+                      (set-empty? (free-vars binding)))
+                 (inline-fns body (funcmap-extend fns id (func (l5e-lambda-args binding)
+                                                               (l5e-lambda-body binding))))
+                 (l5e-let id
+                          (inline-fns binding fns)
+                          (inline-fns body (funcmap-remove fns id))))]
+    [l5e-letrec (id binding body)
+                (l5e-letrec id
+                            (inline-fns binding fns)
+                            (inline-fns body (funcmap-remove fns id)))]
+    [l5e-if (test then else)
+            (l5e-if (inline-fns test fns)
+                    (inline-fns then fns)
+                    (inline-fns else fns))]
+    [l5e-newtuple (args)
+                  (l5e-newtuple (for/list ([arg args])
+                                  (inline-fns arg fns)))]
+    [l5e-begin (fst snd)
+               (l5e-begin (inline-fns fst fns)
+                          (inline-fns snd fns))]
+    [l5e-app (fn args)
+             (let ([new-args (for/list ([arg args])
+                               (inline-fns arg fns))]
+                   [func (and (l5e-var? fn)
+                              (funcmap-get fns (l5e-var-var fn)))])
+               (if func
+                   (add-lets (func-body func)
+                             (func-args func)
+                             new-args)
+                   (l5e-app (inline-fns fn fns) new-args)))]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) 
+             (let ([func (funcmap-get fns var)])
+               (if func
+                   (l5e-lambda (func-args func) (func-body func))
+                   expr))]
+    [l5e-num (num) expr]))
+
+(define-with-contract (add-lets expr ids args)
+  (L5expr? (listof L5-var?) (listof L5expr?) . -> . L5expr?)
+  (cond
+    [(and (null? ids) (null? args)) expr]
+    [(or (null? ids) (null? args))
+     (error 'L5 "add-lets given two different length lists")]
+    [else
+     (add-lets (l5e-let (first ids) (first args) expr)
+               (rest ids)
+               (rest args))]))
+
+;;;
+;;; CLEANING
+;;;
+
+(define-with-contract (clean expr)
+  (L5expr? . -> . L5expr?)
+  (clean-lets expr (substmap)))
+
+(define substmap hash)
+
+(define substmap?
+  (flat-named-contract
+   'substmap?
+   (hash/c L5-var? L5expr? #:immutable #t #:flat? #t)))
+
+(define-with-contract (substmap-get m k)
+  (substmap? L5-var? . -> . (or/c L5expr? false?))
+  (hash-ref m k #f))
+
+(define-with-contract (substmap-getrec m k)
+  (substmap? L5-var? . -> . (or/c L5expr? false?))
+  (let ([v (substmap-get m k)])
+    (cond
+      [(false? v) (l5e-var k)]
+      [(l5e-num? v) v]
+      [(l5e-var? v) (substmap-getrec m (l5e-var-var v))]
+      [else #f])))
+
+(define-with-contract (substmap-extend m v expr)
+  (substmap? L5-var? L5expr? . -> . substmap?)
+  (hash-set m v expr))
+
+(define-with-contract (substmap-remove m v)
+  (substmap? L5-var? . -> . substmap?)
+  (hash-remove m v))
+
+(define-with-contract (clean-lets expr smap)
+  (L5expr? substmap? . -> . L5expr?)
+  (type-case L5expr expr
+    [l5e-lambda (args body)
+                (l5e-lambda args (clean-lets body smap))]
+    [l5e-let (id binding body)
+             (if (or (l5e-var? binding) (l5e-num? binding))
+                 (clean-lets body (substmap-extend smap id binding))
+                 (l5e-let id
+                          (clean-lets binding smap)
+                          (clean-lets body (substmap-remove smap id))))]
+    [l5e-letrec (id binding body)
+                (l5e-letrec id
+                            (clean-lets binding smap)
+                            (clean-lets body smap))]
+    [l5e-if (test then else)
+            (l5e-if (clean-lets test smap)
+                    (clean-lets then smap)
+                    (clean-lets else smap))]
+    [l5e-newtuple (args)
+                  (l5e-newtuple (for/list ([arg args])
+                                  (clean-lets arg smap)))]
+    [l5e-begin (fst snd)
+               (l5e-begin (clean-lets fst smap)
+                          (clean-lets snd smap))]
+    [l5e-app (fn args)
+             (l5e-app (clean-lets fn smap)
+                      (for/list ([arg args])
+                        (clean-lets arg smap)))]
+    [l5e-prim (prim) expr]
+    [l5e-var (var) (or (substmap-getrec smap var) expr)]
+    [l5e-num (num) expr]))
+
+;;;
 ;;; LETREC ELIMINATION
 ;;;
 
@@ -320,14 +490,15 @@
 (define-with-contract (compile-L5expr expr)
   (L5expr? . -> . L4prog?)
   (let*-values ([(renamed-expr) (rename-L5expr expr)]
-                [(flat-expr) (elim-letrec renamed-expr)]
+                [(optim-expr) (optimize renamed-expr)]
+                [(flat-expr) (elim-letrec optim-expr)]
                 [(main cljs) (lambda-lift flat-expr)])
     (l4prog (l4mainfn (convert-L5expr main))
-             (map (λ (clj)
-                    (type-case Closure clj
-                      [closure (lbl args body)
-                               (l4fn lbl args (convert-L5expr body))]))
-                  cljs))))
+            (map (λ (clj)
+                   (type-case Closure clj
+                     [closure (lbl args body)
+                              (l4fn lbl args (convert-L5expr body))]))
+                 cljs))))
 
 (define-with-contract (convert-L5expr expr)
   (L5expr? . -> . L4expr?)
