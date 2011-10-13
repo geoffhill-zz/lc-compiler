@@ -532,7 +532,7 @@
    (optimize (rename-L5expr expr))))
 
 (define-with-contract (compile-L5expr-unoptim expr)
-  (L5expr? . -> . L5expr?)
+  (L5expr? . -> . L4prog?)
   (let-values ([(main cljs) (lambda-lift (elim-letrec (rename-L5expr expr)))])
     (l4prog (l4mainfn (convert-L5expr main))
             (map (λ (clj)
